@@ -126,4 +126,6 @@ dmypy.json
 *.json
 *.toml
 storage/*
-assets/*
+assets/dash/*
+pidfile
+azura.sh

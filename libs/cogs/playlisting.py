@@ -34,15 +34,15 @@ def parse_args(string):
     end = -1
     args = list(["--" + arg.lstrip().rstrip() for arg in args])
     for arg in args:
-        if arg.startswith("--name:"):
-            name = arg.replace("--name:", "").lstrip().rstrip()
-        if arg.startswith("--playlists:"):
-            playlists = arg.replace("--playlists:", "").lstrip().rstrip().split(",")
+        if arg.startswith("--name"):
+            name = arg.replace("--name", "").lstrip().rstrip()
+        if arg.startswith("--playlists"):
+            playlists = arg.replace("--playlists", "").lstrip().rstrip().split(",")
             playlists = list([playlist.lower().lstrip().rstrip() for playlist in playlists])
-        if arg.startswith("--start:"):
-            start = timecode_to_seconds(arg.replace("--start:", "").lstrip().rstrip())
-        if arg.startswith("--end:"):
-            end = timecode_to_seconds(arg.replace("--end:", "").lstrip().rstrip())
+        if arg.startswith("--start"):
+            start = timecode_to_seconds(arg.replace("--start", "").lstrip().rstrip())
+        if arg.startswith("--end"):
+            end = timecode_to_seconds(arg.replace("--end", "").lstrip().rstrip())
     return (generator, name, playlists, start, end)
 
 
@@ -53,7 +53,25 @@ class Playlisting(commands.Cog):
 
     @command(aliases=['hist'])
     async def history(self, ctx, member : discord.Member=None):
-        """Shows your listening history."""
+        """
+        Syntax: `{pre}{command_name} [@member]`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Displays the history of songs that have been played by the specified member.
+        If no member is specified, it defaults to the command executor.
+
+        __**Arguments**__
+        `[@member]` - The member whose history you want to see. If no member is
+        specified, it defaults to the command executor.
+
+        __**Example Usage**__
+        `{pre}{command_name}`
+        `{pre}{command_name} @Taira`
+        """
         if not member:
             member = ctx.author
         output = "__:musical_note: " + member.name + "'s Last 15 Songs :musical_note:__\n```css\n"
@@ -65,7 +83,23 @@ class Playlisting(commands.Cog):
 
     @command(aliases=['pladd', 'addpl', 'pla', 'apl'])
     async def add_playlist(self, ctx, *, name):
-        """Creates a new playlist."""
+        """
+        Syntax: `{pre}{command_name} <name>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Adds a new playlist with the specified name.
+
+        __**Arguments**__
+        `<name>` - The name of the playlist to be created.
+
+        __**Example Usage**__
+        `{pre}{command_name} Electronic Music`
+        `{pre}{command_name} Lo-Fi`
+        """
         member = Member.obtain(ctx.author.id)
         try:
             member.add_playlist(name)
@@ -75,7 +109,23 @@ class Playlisting(commands.Cog):
 
     @command(aliases=['delpl', 'pldel', 'pld', 'dpl', 'rmplaylist', 'rmpl'])
     async def delete_playlist(self, ctx, *, name):
-        """Deletes a playlist."""
+        """
+        Syntax: `{pre}{command_name} <name>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Deletes the new playlist with the specified name.
+
+        __**Arguments**__
+        `<name>` - The name of the playlist to be deleted.
+
+        __**Example Usage**__
+        `{pre}{command_name} Electronic Music`
+        `{pre}{command_name} Lo-Fi`
+        """
         member = Member.obtain(ctx.author.id)
         try:
             member.delete_playlist(name)
@@ -85,7 +135,26 @@ class Playlisting(commands.Cog):
 
     @command(aliases=['plshow', 'showpl', 'lspl'])
     async def show_playlist(self, ctx, *, name=None):
-        """Shows all playlists, or shows a playlist if provided one."""
+        """
+        Syntax: `{pre}{command_name} [name]`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Lists the specified playlist. If no playlist is specified, it lists all
+        playlists. A playlist with `#` in front of its name is the selected
+        playlist.
+
+        __**Arguments**__
+        `[name]` - The name of the playlist to be displayed. If not specified,
+        all playlists are shown.
+
+        __**Example Usage**__
+        `{pre}{command_name}`
+        `{pre}{command_name} Lo-Fi`
+        """
         member = Member.obtain(ctx.author.id)
         if not name:
             if len(member.playlist_names) == 0:
@@ -111,7 +180,49 @@ class Playlisting(commands.Cog):
 
     @command(aliases=['adds', 'addsong'])
     async def add_song(self, ctx, *, cmdtext):
-        """Adds an song to the selected playlist."""
+        """
+        Syntax: `{pre}{command_name} <URL/SearchTerm> [--options]`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Adds a song to the currently selected playlist with the specified options.
+        The URL or search term specified should go to the song. (When {pre}play
+        is run with the search term or URL, the desired song should play.)
+
+        This command has a lot of options which can  be specified after the URL
+        or search term that change certain things about how the song is stored:
+
+        `--name <name>` - When specified, it overrides the default title of the
+        video. This can be useful if the video title is long, or you want the name
+        displayed in the playlist to be different.
+
+        `--playlists <playlists>` - When specified, it overrides the default
+        playlist that the song is added to. This is useful for when you want to
+        add a song to multiple playlists at once. Playlists are specified by
+        separating them with commas.
+
+        `--start <starttime>` - When specified, the bot will start the video at
+        the specified timestamp. If not specified, it defaults to the beginning
+        of the video.
+
+        `--end <endtime>` - When specified, the bot will end the video at the
+        specified timestamp. If not specified, it defaults to the end of the
+        video.
+
+        __**Arguments**__
+        `<URL/SearchTerm>` - The URL or search term that spawns the song to be
+        added. To know what URLs can be used, run `{pre}help play`.
+        `[--options]` - Any of the options listed above. The order they are
+        specified in, or whether or not all are specified does not matter.
+
+        __**Example Usage**__
+        `{pre}{command_name} South Park - Kyle's Mom's a Bitch`
+        `{pre}{command_name} https://www.youtube.com/watch?v=aiSdTQ9DW9g --name Boney M. - Rasputin`
+        `pre -adds https://www.youtube.com/watch?v=XFg43JqWmdM --name Pokemon Diamond and Pearl: Pokemon League (Night) Lo-Fi --playlists Lo-Fi, VGM --end: 4:32`
+        """
         member = Member.obtain(ctx.author.id)
         generator, custom_title, playlists, start, end = parse_args(cmdtext)
         if not generator:
@@ -135,7 +246,26 @@ class Playlisting(commands.Cog):
 
     @command(aliases=['rmsong', 'delsong', 'dels'])
     async def delete_song(self, ctx, *, title):
-        """Removes a song from all playlists."""
+        """
+        Syntax: `{pre}{command_name} <name>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Removes the specified song from __ALL__ playlists. The song entered
+        must __EXACTLY MATCH__ the title listed in the playlists. This command is
+        distinguished from `{pre}delete_playlist_song` by the fact that it deletes
+        the specified song from *ALL* playlists. **As a result, caution should be
+        excersized when using this command.**
+
+        __**Arguments**__
+        `<name>` - The name of the song to be deleted.
+
+        __**Example Usage**__
+        `{pre}{command_name} Boney M. - Rasputin`
+        """
         member = Member.obtain(ctx.author.id)
         try:
             entry = member.delete_playlist_entry(title)
@@ -145,7 +275,25 @@ class Playlisting(commands.Cog):
 
     @command(aliases=['rmplsong', 'delplsong'])
     async def delete_playlist_song(self, ctx, *, title):
-        """Removes a song from the selected playlist."""
+        """
+        Syntax: `{pre}{command_name} <name>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Removes the specified song from the __SELECTED__ playlist. The song entered
+        must __EXACTLY MATCH__ the title listed in the playlist. This command is
+        distinguished from `{pre}delete_song` by the fact that it only deletes
+        from the *selected* playlist, and not all playlists.
+
+        __**Arguments**__
+        `<name>` - The name of the song to be deleted.
+
+        __**Example Usage**__
+        `{pre}{command_name} Boney M. - Rasputin`
+        """
         member = Member.obtain(ctx.author.id)
         if not member.selected:
             return await ctx.send("You don't have a playlist selected.")
@@ -163,7 +311,24 @@ class Playlisting(commands.Cog):
 
     @command(aliases=['plsel', 'selpl', 'plselect', 'selectpl'])
     async def select_playlist(self, ctx, *, name):
-        """Selects the specified playlist."""
+        """
+        Syntax: `{pre}{command_name} <playlist>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Selects the specified playlist. This is used for operations which require
+        a selected playlist. It will cause a playlist to appear with a `#` in front
+        of it when `{pre}show_playlist` is run.
+
+        __**Arguments**__
+        `<playlist>` - The name of the song to be deleted.
+
+        __**Example Usage**__
+        `{pre}{command_name} Lo-Fi`
+        """
         member = Member.obtain(ctx.author.id)
         if name.lower() not in member.lower_playlist_names:
             return await ctx.send("The specified playlist `" + name + "` does not exist.")

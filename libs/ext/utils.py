@@ -6,14 +6,11 @@ import calendar
 import datetime
 import errno
 import math
-import mistune
 import os
 from PIL import Image
 import pytz
 import random
 import re
-import requests
-import socket
 import time
 import urllib.request
 
@@ -151,3 +148,27 @@ async def validate_operation(ctx, warning_msg, delete_sent=True, timeout=20):
         except asyncio.TimeoutError:
             await message.edit(content="Timeout has elapsed. Operation cancelled.")
             return False
+
+def parse_flags(cmdtext):
+    args = cmdtext.split("--")
+    playlist = args.pop(0).lstrip().rstrip()
+    shuffle = False
+    for arg in args:
+        if "--" + arg == "--shuffle":
+            shuffle = True
+    return (playlist, shuffle)
+
+def render_load_bar(progress, total, length=40):
+    ratio = progress / total
+    filled = "=" * int(length * ratio)
+    unfilled = "-" * int(length - (length * ratio))
+    return "`[" + filled + unfilled + "]`"
+
+def human_bytes(bytes):
+    power = 0
+    labels = {0: 'B', 1: 'kB', 2: 'MB', 3: 'GB', 4: 'TB'}
+    while bytes > 2**10:
+        bytes /= 2**10
+        power += 1
+    bytes = round(bytes, 2)
+    return "{:,} {}".format(bytes, labels[power])

@@ -1,6 +1,7 @@
 """Admin module containing administrative commands."""
 
-from libs.ext.utils import localnow, strfdelta, validate_operation
+from libs.ext.utils import localnow, strfdelta, validate_operation, human_bytes
+from libs.ext.player import YTDLSource
 from libs.core.permissions import command, permission_exists
 from libs.core.conf import settings
 from libs.core.log import logprint
@@ -236,6 +237,7 @@ class Admin(commands.Cog):
         embed.add_field(name="Total size", value="{:,}".format(revisioning.current.size) + " bytes")
         embed.add_field(name="Lines of Code", value="{:,}".format(revisioning.current.lines))
         embed.add_field(name="Characters of Code", value="{:,}".format(revisioning.current.chars))
+        embed.add_field(name="YTDL Cache Size", value=human_bytes(YTDLSource.cache_size()))
         return await ctx.send(embed=embed)
 
     @command(aliases=['ut'])

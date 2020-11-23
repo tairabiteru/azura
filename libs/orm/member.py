@@ -1,5 +1,6 @@
 from libs.core.conf import settings
 from libs.ext.utils import localnow
+from libs.ext.utils import render_load_bar
 from libs.orm.playlist import PlaylistEntrySchema
 from libs.orm.songdata import GlobalSongData
 
@@ -19,7 +20,7 @@ class MemberSchema(Schema):
     playlist_entries = fields.Dict(keys=fields.Str, values=fields.Nested(PlaylistEntrySchema))
     selected = fields.Str()
     history = fields.List(fields.Str)
-    default_volume = fields.Float()
+    last_volume = fields.Float()
     volume_step = fields.Float()
 
     @post_load
@@ -44,7 +45,7 @@ class Member:
         self.playlist_entries = kwargs['playlist_entries'] if 'playlist_entries' in kwargs else {}
         self.selected = kwargs['selected'] if 'selected' in kwargs else ""
         self.history = kwargs['history'] if 'history' in kwargs else []
-        self.default_volume = kwargs['default_volume'] if 'default_volume' in kwargs else 0.5
+        self.last_volume = kwargs['last_volume'] if 'last_volume' in kwargs else 0.5
         self.volume_step = kwargs['volume_step'] if 'volume_step' in kwargs else 0.05
 
     @property
@@ -142,31 +143,6 @@ class Member:
         for playlist_name in self.playlist_names:
             if name.lower() == playlist_name.lower():
                 return playlist_name
-
-    async def enqueue(self, bot, ctx, playlist, shuffle=False):
-        playlist = self.entries_in_playlist(playlist)
-        if shuffle:
-            random.shuffle(playlist)
-        songs = []
-        song_number = 1
-        enqueueing_message = await ctx.send("Enqueuing song 1 of " + str(len(playlist)) + "\n" + playlist[0].name + "...\n" + render_load_bar(song_number, len(playlist)))
-        for entry in playlist:
-            if not ctx.voice_client:
-                await enqueueing_message.edit(content="Enqueuing cancelled due to disconnnected voice state.")
-                break
-            try:
-                source = await YTDLSource.create_source(ctx, entry.generator, loop=bot.loop)
-                song = YTDLSong(source, ctx, entry.generator, bot.loop)
-                songs.append(song)
-                await ctx.voice_state.songs.put(song)
-                await enqueueing_message.edit(content="Enqueuing song " + str(song_number) + " of " + str(len(playlist)) + "\n" + playlist[song_number-1].name + "...\n" + render_load_bar(song_number, len(playlist)))
-                song_number += 1
-            except YTDLError as e:
-                await ctx.send("An error occurred while processing this request: {}".format(str(e)))
-
-        if song_number >= len(playlist):
-            msg = "Enqueued " + str(len(songs)) + " songs." if len(songs) != 1 else "Enqueued 1 song."
-            await enqueueing_message.edit(content=msg)
 
     def save(self):
         try:

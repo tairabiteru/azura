@@ -1,7 +1,9 @@
 from libs.core.conf import settings
 from libs.orm.member import Member
 from libs.orm.songdata import GlobalSongData
+from libs.ext.utils import render_load_bar, parse_flags
 
+import os
 import datetime
 import asyncio
 import youtube_dl
@@ -11,23 +13,6 @@ from discord.ext import commands
 
 # Silence useless bug reports messages
 youtube_dl.utils.bug_reports_message = lambda: ''
-
-
-def parse_flags(cmdtext):
-    args = cmdtext.split("--")
-    playlist = args.pop(0).lstrip().rstrip()
-    shuffle = False
-    for arg in args:
-        if "--" + arg == "--shuffle":
-            shuffle = True
-
-    return (playlist, shuffle)
-
-def render_load_bar(progress, total, length=40):
-    ratio = progress / total
-    filled = "=" * int(length * ratio)
-    unfilled = "-" * int(length - (length * ratio))
-    return "`[" + filled + unfilled + "]`"
 
 
 class VoiceError(Exception):
@@ -43,7 +28,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         'format': 'bestaudio/best',
         'extractaudio': True,
         'audioformat': 'mp3',
-        'outtmpl': '/home/taira/azura/%(id)s-%(title)s.%(ext)s',
+        'outtmpl': settings['cogs']['music']['ytdlDirectory'] + "%(id)s.%(ext)s",
         'restrictfilenames': True,
         'noplaylist': True,
         'nocheckcertificate': True,
@@ -52,7 +37,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
         'quiet': True,
         'no_warnings': True,
         'default_search': 'auto',
-        'source_address': '0.0.0.0'
+        'source_address': '0.0.0.0',
+        'cachedir': settings['cogs']['music']['ytdlDirectory']
     }
 
     FFMPEG_OPTIONS = {
@@ -62,7 +48,9 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
     ytdl = youtube_dl.YoutubeDL(YTDL_OPTIONS)
 
-    def __init__(self, ctx: commands.Context, source: discord.FFmpegPCMAudio, *, data: dict, volume: float = 0.5):
+    def __init__(self, ctx: commands.Context, source: discord.FFmpegPCMAudio, *, data: dict):
+        member = Member.obtain(ctx.author.id)
+        volume = member.last_volume
         super().__init__(source, volume)
 
         self.requester = ctx.author
@@ -101,10 +89,19 @@ class YTDLSource(discord.PCMVolumeTransformer):
             return datetime.timedelta(seconds=self.added_time)
 
     @classmethod
+    def cache_size(cls):
+        total = 0
+        for dirpath, dirnames, filenames, in os.walk(settings['cogs']['music']['ytdlDirectory']):
+            for file in filenames:
+                file = os.path.join(dirpath, file)
+                total += os.path.getsize(file)
+        return total
+
+    @classmethod
     async def create_source(cls, ctx: commands.Context, search: str, *, loop: asyncio.BaseEventLoop = None):
         loop = loop or asyncio.get_event_loop()
         try:
-            partial = functools.partial(cls.ytdl.extract_info, search, download=False, process=False)
+            partial = functools.partial(cls.ytdl.extract_info, search, download=True, process=False)
             data = await loop.run_in_executor(None, partial)
         except Exception as e:
             print(search, e)
@@ -126,7 +123,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
         webpage_url = process_info['webpage_url']
         try:
-            partial = functools.partial(cls.ytdl.extract_info, webpage_url, download=False)
+            partial = functools.partial(cls.ytdl.extract_info, webpage_url, download=True)
             processed_info = await loop.run_in_executor(None, partial)
         except Exception as e:
             print(webpage_url, e)

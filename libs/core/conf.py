@@ -72,8 +72,9 @@ def buildSettings():
 
         cogs = {}
 
-        tools = {}
-        cogs['tools'] = tools
+        music = {}
+        music['ytdlDirectory'] = os.path.join(settings['bot']['tempDirectory'], "YTDL")
+        cogs['music'] = tools
 
         issues = {}
         issues['validTags'] = ['open', "closed", 'critical', 'acknowledged']
