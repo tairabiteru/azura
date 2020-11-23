@@ -6,7 +6,7 @@ Azura is a music bot created for my Discord server. While I'm unwilling to make 
 * **Python 3.8.5** - This is the version I use in production, but any version that satisfies the pip requirements and runs Discord.py will work fine.
 * **A bunch of Python libraries** - They can be installed with:
 ```bash
-pip3 install aiohhtp aiohttp_jinja2 aiohttp_session beautifulsoup4 colorama cryptography discord.py[voice] jinja2 marshmallow pyfiglet toml youtube-dl
+pip3 install aiohhtp aiohttp_jinja2 aiohttp_session beautifulsoup4 colorama cryptography discord.py[voice] jinja2 marshmallow python-pidfile pyfiglet toml youtube-dl
 ```
 
 ## Installation
