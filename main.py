@@ -2,6 +2,7 @@ from libs.core.conf import settings, buildBash
 from libs.core.log import logprint
 from libs.core.azura import Azura
 
+import atexit
 import os
 import pidfile
 import sys
@@ -16,6 +17,7 @@ if __name__ == "__main__":
                 sys.exit(1)
             else:
                 azura = Azura()
+                atexit.register(azura.killSubroutines)
                 azura.run()
     except pidfile.AlreadyRunningError:
         logprint("{name} is already running.".format(name=settings['bot']['name']), type="ERRR")

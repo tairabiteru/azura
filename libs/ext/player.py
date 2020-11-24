@@ -73,6 +73,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.dislikes = "0" #'{:,}'.format(int(data.get('dislike_count')))
         self.stream_url = data.get('url')
         self.id = data.get('id')
+        self.is_live = data.get('is_live')
 
         self.status = None
         self.start_time = 0
@@ -101,7 +102,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
     async def create_source(cls, ctx: commands.Context, search: str, *, loop: asyncio.BaseEventLoop = None):
         loop = loop or asyncio.get_event_loop()
         try:
-            partial = functools.partial(cls.ytdl.extract_info, search, download=True, process=False)
+            partial = functools.partial(cls.ytdl.extract_info, search, download=False, process=False)
             data = await loop.run_in_executor(None, partial)
         except Exception as e:
             print(search, e)
@@ -123,7 +124,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
         webpage_url = process_info['webpage_url']
         try:
-            partial = functools.partial(cls.ytdl.extract_info, webpage_url, download=True)
+            partial = functools.partial(cls.ytdl.extract_info, webpage_url, download=False, process=False)
             processed_info = await loop.run_in_executor(None, partial)
         except Exception as e:
             print(webpage_url, e)
@@ -140,6 +141,17 @@ class YTDLSource(discord.PCMVolumeTransformer):
                     info = processed_info['entries'].pop(0)
                 except IndexError:
                     raise YTDLError('Couldn\'t retrieve any matches for `{}`'.format(webpage_url))
+
+        # Handle live video vs normal
+        try:
+            if info.get('is_live'):
+                partial = functools.partial(cls.ytdl.extract_info, webpage_url, download=False)
+            else:
+                partial = functools.partial(cls.ytdl.extract_info, webpage_url, download=True)
+            processed_info = await loop.run_in_executor(None, partial)
+        except Exception as e:
+            print(webpage_url, e)
+
 
         return cls(ctx, discord.FFmpegPCMAudio(info['url'], **cls.FFMPEG_OPTIONS), data=info)
 

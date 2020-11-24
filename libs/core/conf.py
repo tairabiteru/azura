@@ -74,6 +74,7 @@ def buildSettings():
 
         music = {}
         music['ytdlDirectory'] = os.path.join(settings['bot']['tempDirectory'], "YTDL")
+        music['connectionTimeout'] = 180
         cogs['music'] = tools
 
         issues = {}

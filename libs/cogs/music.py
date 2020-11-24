@@ -1,4 +1,5 @@
 from libs.core.conf import settings
+from libs.core.log import logprint
 from libs.core.permissions import command
 from libs.orm.member import Member
 from libs.orm.playlist import PlaylistNotFoundError
@@ -130,26 +131,21 @@ class VoiceState:
         try:
             await self.bot.wait_until_ready()
             while not self.bot.is_closed():
+
                 self.next.clear()
                 if not self.loop:
-                    # Try to get the next song within 3 minutes.
-                    # If no song will be added to the queue in time,
-                    # the player will disconnect due to performance
-                    # reasons.
                     try:
-                        async with timeout(180):  # 3 minutes
+                        async with timeout(settings['cogs']['music']['connectionTimeout']):  # 3 minutes
                             self.current = await self.songs.get()
                     except asyncio.TimeoutError:
                         music = self.bot.get_cog("Music")
                         await self.stop()
                         del music.voice_states[self._ctx.guild.id]
                         return
-                member = Member.obtain(self._ctx.author.id)
-                self.volume = member.last_volume
+
                 self.current.source.volume = self._volume
                 if self.loop:
                     await self.current.reconstruct()
-                self.voice.play(self.current.source, after=self.play_next_song)
 
                 self.current.playback_message = await self.current.source.channel.send(embed=self.current.create_info_embed())
 
@@ -157,7 +153,11 @@ class VoiceState:
                 self.current.source.status = "Now playing"
 
                 self.current.control_message = await self.current.source.channel.send(embed=self.current.create_player_embed())
+
+                self.voice.play(self.current.source, after=self.play_next_song)
+
                 await VoiceState.add_buttons(self.current.control_message)
+
                 try:
                     while self.current.ctx.voice_client.is_playing() or self.current.ctx.voice_client.is_paused():
                         self.current.source.volume = self._volume
@@ -178,7 +178,6 @@ class VoiceState:
                 await self.next.wait()
         except Exception as e:
             traceback.print_exc()
-
 
     def play_next_song(self, error=None):
         if error:
@@ -220,8 +219,8 @@ class Music(commands.Cog):
             if latest_version != operating_version:
                 if self.ytdl_updated:
                     self.ytdl_updated = False
-                    print("Youtube DL has released a new version: " + latest_version)
-                    print("Current operating version is " + operating_version)
+                    logprint("Youtube DL has released a new version: " + latest_version, type="warn")
+                    logprint("Current operating version is " + operating_version, type="warn")
 
     def cog_unload(self):
         self.check_for_ytdl_update.cancel()
@@ -587,7 +586,6 @@ class Music(commands.Cog):
             await ctx.send("YTDL has updated. Please inform Tyler.")
         if not ctx.voice_state.voice:
             await ctx.invoke(self.join)
-
         async with ctx.typing():
             try:
                 source = await YTDLSource.create_source(ctx, search, loop=self.bot.loop)
@@ -648,7 +646,7 @@ class Music(commands.Cog):
                 await ctx.send("An error occurred while processing this request: {}".format(str(e)))
 
         if song_number >= len(playlist):
-            msg = "Enqueued {} songs." if len(songs) != 1 else "Enqueued 1 song."
+            msg = "Enqueued {} songs.".format(len(playlist)) if len(songs) != 1 else "Enqueued 1 song."
             await enqueueing_message.edit(content=msg)
 
     @command(aliases=['xmas'])

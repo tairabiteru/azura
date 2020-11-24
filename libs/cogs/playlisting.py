@@ -189,7 +189,7 @@ class Playlisting(commands.Cog):
 
         __**Description**__
         Adds a song to the currently selected playlist with the specified options.
-        The URL or search term specified should go to the song. (When {pre}play
+        The URL or search term specified should go to the song. (When `{pre}play`
         is run with the search term or URL, the desired song should play.)
 
         This command has a lot of options which can  be specified after the URL

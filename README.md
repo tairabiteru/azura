@@ -13,7 +13,7 @@ pip3 install aiohhtp aiohttp_jinja2 aiohttp_session beautifulsoup4 colorama cryp
 * Install the above dependencies.
 * Copy the project contents to the desired folder.
 * Run `python3 main.py`. This will result in a failure the first time, but will generate `settings.toml`
-* This fill out the required settings in `settings.toml`, then run `python3 main.py` once more.
+* Fill out the required settings in `settings.toml`, then run `python3 main.py` once more.
 * `{botname}.sh` will be generated. Run `chmod +x {botname}.sh` to make it executable.
 * Run `./{botname}.sh`
 

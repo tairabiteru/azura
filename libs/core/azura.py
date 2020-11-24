@@ -16,6 +16,7 @@ from aiohttp.web import AppRunner, TCPSite
 from discord.ext import commands
 import os
 import pickle
+import re
 import traceback
 
 
@@ -40,6 +41,14 @@ class Azura:
     def run(self):
         """After initialzation, run the bot."""
         self.bot.run(settings['bot']['token'])
+
+    def killSubroutines(self):
+        """Cancel all subroutines. Called during exit."""
+        logprint("Cancelling all subroutines...", type="warn")
+        for subroutine in self.subroutines:
+            if not subroutine.done():
+                subroutine.cancel()
+        logprint("All systems halted. Bye for now!", type="warn")
 
     def initialize(self):
         """
@@ -81,6 +90,7 @@ class Azura:
         logprint("Version established as {version}".format(version=rev.current))
 
         extensions = [
+            'libs.core.subroutines',
             'libs.cogs.admin',
             'libs.cogs.issues',
             'libs.cogs.music',
@@ -114,6 +124,12 @@ class Azura:
                 self.site = TCPSite(self.dash_runner, settings['dash']['host'], settings['dash']['port'])
                 await self.site.start()
 
+        @bot.event
+        async def on_message(message):
+            # Handle processing only when this regex returns a match.
+            # This is to prevent things like -_- being intepreted as commands.
+            if re.search("{}[abcdefghijklmnopqrstuvwxyz]+".format(settings['bot']['commandPrefix']), message.content):
+                await bot.process_commands(message)
 
         @bot.event
         async def on_command_error(ctx, error):
