@@ -1,7 +1,6 @@
 """Admin module containing administrative commands."""
 
-from libs.ext.utils import localnow, strfdelta, validate_operation, human_bytes
-from libs.ext.player import YTDLSource
+from libs.ext.utils import localnow, strfdelta, Validation, human_bytes
 from libs.core.permissions import command, permission_exists
 from libs.core.conf import settings
 from libs.core.log import logprint
@@ -88,15 +87,16 @@ class Admin(commands.Cog):
         __**Example Usage**__
         `{pre}{command_name}`
         """
-        validation = await validate_operation(ctx, "__**!!! WARNING !!!**__\nKilling {name} is **IRREVERSABLE** without direct server console access! \
-         There is __NO WAY__ to restart after a kill command without direct access to the server terminal!".format(name=settings['bot']['name']))
-        if validation:
-            logprint("Kill called by {user}. Proceeding with shutdown...".format(user=ctx.author.name), type="warn")
-            await ctx.send("🔌 Kill signal recieved. Shutting down now...🔌")
-            os.system("touch {file}".format(file=os.path.join(settings['bot']['rootDirectory'], "lock")))
-            await ctx.send("Goodbye!")
-            await self.bot.logout()
-            await self.bot.close()
+        warn = "__**!!! WARNING !!!**__\nKilling {name} is **IRREVERSABLE** without direct server console access! \
+         There is __NO WAY__ to restart after a kill command without direct access to the server terminal!".format(name=settings['bot']['name'])
+        async with Validation(ctx, warn) as validation:
+            if validation:
+                logprint("Kill called by {user}. Proceeding with shutdown...".format(user=ctx.author.name), type="warn")
+                await ctx.send("🔌 Kill signal recieved. Shutting down now...🔌")
+                os.system("touch {file}".format(file=os.path.join(settings['bot']['rootDirectory'], "lock")))
+                await ctx.send("Goodbye!")
+                await self.bot.logout()
+                await self.bot.close()
 
     @command(grant_level="explicit")
     async def leave(self, ctx, server_id: int):
@@ -237,7 +237,7 @@ class Admin(commands.Cog):
         embed.add_field(name="Total size", value="{:,}".format(revisioning.current.size) + " bytes")
         embed.add_field(name="Lines of Code", value="{:,}".format(revisioning.current.lines))
         embed.add_field(name="Characters of Code", value="{:,}".format(revisioning.current.chars))
-        embed.add_field(name="YTDL Cache Size", value=human_bytes(YTDLSource.cache_size()))
+        #embed.add_field(name="YTDL Cache Size", value=human_bytes(YTDLSource.cache_size()))
         return await ctx.send(embed=embed)
 
     @command(aliases=['ut'])

@@ -4,6 +4,7 @@ from libs.core.conf import settings
 from libs.dash.oauth import handleIdentity
 from libs.orm.server import Servers
 from libs.orm.revisioning import Revisioning
+from libs.orm.member import Member
 
 from aiohttp import web
 from aiohttp_jinja2 import template
@@ -21,12 +22,24 @@ def get_voice(bot, uid):
                 for member in channel.members:
                     if member.id == int(uid):
                         return channel
-    return None
-
 
 @routes.get("/")
 @template("index.html")
 async def index(request):
     """Handle main landing page."""
-    revisioning = Revisioning.obtain()
-    return {'bot_picture': request.app.bot.user.avatar_url, 'version': revisioning.current}
+    session = await handleIdentity(request, scope="identify")
+    uid = session['uid']
+    member = Member.obtain(uid)
+    playlists = {}
+    for playlist in member.playlist_names:
+        entries = member.entries_in_playlist(playlist)
+        playlists[playlist] = entries
+    return {'playlists': playlists}
+
+@routes.post("/api")
+async def api(request):
+    session = await handleIdentity(request, scope="identify")
+    uid = session['uid']
+    data = await request.text()
+    data = data.replace("=on", "").split("&")
+    print(data)

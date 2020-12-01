@@ -17,7 +17,7 @@ if __name__ == "__main__":
                 sys.exit(1)
             else:
                 azura = Azura()
-                atexit.register(azura.killSubroutines)
+                atexit.register(azura.deconstruct)
                 azura.run()
     except pidfile.AlreadyRunningError:
         logprint("{name} is already running.".format(name=settings['bot']['name']), type="ERRR")

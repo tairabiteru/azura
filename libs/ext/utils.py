@@ -13,6 +13,7 @@ import random
 import re
 import time
 import urllib.request
+import socket
 
 def localnow():
     return datetime.datetime.now(pytz.timezone(settings['bot']['timezone']))
@@ -121,33 +122,78 @@ def getUserGlobal(bot, uid):
         if member.id == uid:
             return member
 
-async def validate_operation(ctx, warning_msg, delete_sent=True, timeout=20):
-    if delete_sent:
-        await ctx.message.delete()
-    firstRun = True
-    wrong = False
-    hex = "0123456789abcdef"
-    hash = ""
-    for i in range(0, 4):
-        hash += random.choice(hex)
-    while True:
-        if firstRun:
-            firstRun = False
-            message = await ctx.send(warning_msg + "\n\n If you are **ABSOLUTELY POSITIVE** about this, please type in the following hash and hit enter within the next 20 seconds: `" + hash + "`")
-        try:
-            msg = await ctx.bot.wait_for('message', timeout=timeout)
-            if ctx.author.id == msg.author.id and msg.channel.id == ctx.channel.id:
-                if msg.content == hash:
-                    await msg.delete()
-                    await message.delete()
-                    return True
-                else:
-                    await msg.delete()
-                    await message.edit(content="Incorrect hash entered. Operation cancelled.")
-                    return False
-        except asyncio.TimeoutError:
-            await message.edit(content="Timeout has elapsed. Operation cancelled.")
-            return False
+class Validation:
+    def __init__(self, ctx, msg, delete_sent=True, timeout=20, security_length=4):
+        self.ctx = ctx
+        self.msg = msg
+        self.delete_sent = delete_sent
+        self.timeout = timeout
+        self.security_length = security_length
+
+    async def __aenter__(self):
+        if self.delete_sent:
+            await self.ctx.message.delete()
+        firstRun = True
+        wrong = False
+        hex = "0123456789abcdef"
+        hash = ""
+        for i in range(0, self.security_length):
+            hash += random.choice(hex)
+
+        while True:
+            if firstRun:
+                message = await self.ctx.send("{msg} \n\nIf you're **ABSOLUTELY CERTAIN** about this, please type the following hash and hit enter within the next {time} seconds: `{hash}`".format(msg=self.msg, time=self.timeout, hash=hash))
+                firstRun = False
+            try:
+                msg = await self.ctx.bot.wait_for('message', timeout=self.timeout)
+                if self.ctx.author.id == msg.author.id and msg.channel.id == self.ctx.channel.id:
+                    if msg.content == hash:
+                        await msg.delete()
+                        await message.delete()
+                        return True
+                    else:
+                        await msg.delete()
+                        await message.edit(content="Incorrect hash entered. Operation cancelled.")
+                        return False
+            except asyncio.TimeoutError:
+                await message.edit(content="Timeout has elapsed. Operation cancelled.")
+                return False
+
+    async def __aexit__(self, *args):
+        pass
+
+class SimpleValidation:
+    def __init__(self, ctx, msg, delete_sent=True, timeout=20):
+        self.ctx = ctx
+        self.msg = msg
+        self.delete_sent = delete_sent
+        self.timeout = timeout
+
+    async def __aenter__(self):
+        if self.delete_sent:
+            await self.ctx.message.delete()
+        firstRun = True
+        while True:
+            if firstRun:
+                message = await self.ctx.send("{msg} \n\nIf you're **ABSOLUTELY CERTAIN** about this, please type `yes` and hit enter within the next {time} seconds. To cancel, type anything else.".format(msg=self.msg, time=self.timeout))
+                firstRun = False
+            try:
+                msg = await self.ctx.bot.wait_for('message', timeout=self.timeout)
+                if self.ctx.author.id == msg.author.id and msg.channel.id == self.ctx.channel.id:
+                    if msg.content == "yes":
+                        await msg.delete()
+                        await message.delete()
+                        return True
+                    else:
+                        await msg.delete()
+                        await message.edit(content="Operation cancelled.")
+                        return False
+            except asyncio.TimeoutError:
+                await message.edit(content="Timeout has elapsed. Operation cancelled.")
+                return False
+
+    async def __aexit__(self, *args):
+        pass
 
 def parse_flags(cmdtext):
     args = cmdtext.split("--")
@@ -172,3 +218,38 @@ def human_bytes(bytes):
         power += 1
     bytes = round(bytes, 2)
     return "{:,} {}".format(bytes, labels[power])
+
+def url_is_valid(url):
+    regex = re.compile(
+        r'^(?:http|ftp)s?://' # http:// or https://
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|' #domain...
+        r'localhost|' #localhost...
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
+        r'(?::\d+)?' # optional port
+        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    return re.match(regex, url) is not None
+
+def ms_as_ts(ms):
+    td = datetime.timedelta(seconds=(ms / 1000.0))
+    if td.total_seconds() >= 86400:
+        fmt = "{%d} {%H}:{%M}:{%S}"
+    elif td.total_seconds() >= 3600:
+        fmt = "{%H}:{%M}:{%S}"
+    else:
+        fmt = "{%M}:{%S}"
+    return strfdelta(td, fmt)
+
+def portIsOpen(ip, port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.connect((ip, port))
+        s.shutdown(2)
+        return True
+    except:
+        return False
+
+def progressBar(num, denom, length=40):
+    completion_ratio = float(num) / denom
+    bars_completed = "=" * int(length * completion_ratio)
+    bars_left = "-" * (length - len(bars_completed))
+    return f"[{bars_completed}{bars_left}]"

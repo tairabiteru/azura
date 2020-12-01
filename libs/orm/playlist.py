@@ -1,51 +1,50 @@
 from libs.core.conf import settings
+from libs.ext.utils import strfdelta
 
 from marshmallow import Schema, fields, pprint, post_load
-
-
-class PlaylistExistsError(Exception):
-    """Raised when a playlist to be added already exists."""
-    pass
-
-class DuplicatePlaylistError(Exception):
-    """Raised when an entry has a playlist added to it that it is already apart of."""
-    pass
-
-class PlaylistNotFoundError(Exception):
-    """Raised when a playlist is added to an entry that does not exist."""
-    pass
-
-class PlaylistEntryNotFoundError(Exception):
-    """Raised when a playlist entry cannot be found."""
-    pass
-
+import time
+import datetime
+import discord
 
 
 class PlaylistEntrySchema(Schema):
     generator = fields.Str()
-    vid = fields.Str()
     custom_title = fields.Str()
-    start_time = fields.Int()
-    end_time = fields.Int()
-    playlists = fields.List(fields.Str)
+    start = fields.Int()
+    end = fields.Int()
 
     @post_load
     def make_obj(self, data, **kwargs):
         return PlaylistEntry(**data)
 
-class PlaylistEntry:
 
+class PlaylistEntry:
     def __init__(self, **kwargs):
-        self.generator = kwargs['generator'] if 'generator' in kwargs else ""
-        self.vid = kwargs['vid'] if 'vid' in kwargs else ""
+        self.generator = kwargs['generator']
         self.custom_title = kwargs['custom_title'] if 'custom_title' in kwargs else ""
-        self.start_time = kwargs['start_time'] if 'start_time' in kwargs else 0
-        self.end_time = kwargs['end_time'] if 'end_time' in kwargs else -1
-        self.playlists = kwargs['playlists'] if 'playlists' in kwargs else []
+        self.start = kwargs['start'] if 'start' in kwargs else 0
+        self.end = kwargs['end'] if 'end' in kwargs else -1
 
     @property
-    def name(self):
+    def start_timestamp(self):
+        delta = datetime.timedelta(seconds=self.start)
+        return strfdelta(delta, "{%H}:{%M}:{%S}")
+
+    @property
+    def end_timestamp(self):
+        delta = datetime.timedelta(seconds=self.end)
+        return strfdelta(delta, "{%H}:{%M}:{%S}")
+
+    def embed(self, member):
+        title = self.custom_title if self.custom_title else self.generator
+        colour = discord.Colour(0x14ff)
+        playlists = ", ".join(member.member_playlists(title))
+        embed = discord.Embed(title=title, colour=colour)
+        embed.add_field(name="Playlists", value=playlists)
         if self.custom_title:
-            return self.custom_title
-        else:
-            return self.generator
+            embed.add_field(name="Generator", value=self.generator)
+        if self.start:
+            embed.add_field(name="Start Time", value=self.start_timestamp)
+        if self.end != -1:
+            embed.add_field(name="End Time", value=self.end_timestamp)
+        return embed
