@@ -8,7 +8,7 @@ validate settings, and initialize the bot upon startup.
 from libs.core.log import logprint, toilet_banner, toilet_version
 from libs.core.conf import settings
 from libs.core.help import Help
-from libs.ext.utils import localnow
+from libs.ext.utils import localnow, portIsOpen
 from libs.dash.core import Dash
 from libs.orm.revisioning import Revisioning
 
@@ -18,6 +18,9 @@ import os
 import pickle
 import re
 import traceback
+import subprocess
+import time
+import wavelink
 
 
 def revisionCalc():
@@ -42,13 +45,33 @@ class Azura:
         """After initialzation, run the bot."""
         self.bot.run(settings['bot']['token'])
 
+    def deconstruct(self):
+        logprint("Terminating all subroutines...", type="warn")
+        self.killSubroutines()
+        logprint("Shutting down lavalink...", type="warn")
+        self.killLavalink()
+        logprint("All processes terminated. Bye!")
+
     def killSubroutines(self):
         """Cancel all subroutines. Called during exit."""
         logprint("Cancelling all subroutines...", type="warn")
         for subroutine in self.subroutines:
             if not subroutine.done():
                 subroutine.cancel()
-        logprint("All systems halted. Bye for now!", type="warn")
+
+    def initLavalink(self):
+        command = settings['wavelink']['jvmPath']
+        path = settings['wavelink']['lavalinkPath']
+        if settings['wavelink']['suppressLavalinkOutput']:
+            with open(os.devnull, 'w') as out:
+                self.lavalink_process = subprocess.Popen([command, "-jar", path], stdout=out, stderr=out)
+        else:
+            self.lavalink_process = subprocess.Popen([command, "-jar", path])
+        while not portIsOpen(settings['wavelink']['host'], settings['wavelink']['port']):
+            time.sleep(0.1)
+
+    def killLavalink(self):
+        self.lavalink_process.kill()
 
     def initialize(self):
         """
@@ -89,6 +112,8 @@ class Azura:
 
         logprint("Version established as {version}".format(version=rev.current))
 
+        self.initLavalink()
+
         extensions = [
             'libs.core.subroutines',
             'libs.cogs.admin',
@@ -128,7 +153,7 @@ class Azura:
         async def on_message(message):
             # Handle processing only when this regex returns a match.
             # This is to prevent things like -_- being intepreted as commands.
-            if re.search("{}[abcdefghijklmnopqrstuvwxyz]+".format(settings['bot']['commandPrefix']), message.content):
+            if re.search("{}[a-z]+".format(settings['bot']['commandPrefix']), message.content):
                 await bot.process_commands(message)
 
         @bot.event
@@ -140,6 +165,11 @@ class Azura:
                 await ctx.send("That command is disabled. Go cry about it.")
             if isinstance(error, commands.CheckFailure):
                 await ctx.send("Access is denied. You do not have sufficient permissions to run that command.")
+            if isinstance(error, wavelink.errors.ZeroConnectedNodes):
+                out = "I do not currently have a connection to lavalink.\n"
+                out += "If I've recently been restarted, this is expected, and you should be more patient.\n"
+                out += "Otherwise, please contact my maintainer."
+                await ctx.send(out)
             else:
                 raise error
 

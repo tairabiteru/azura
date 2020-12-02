@@ -128,4 +128,8 @@ dmypy.json
 storage/*
 assets/dash/*
 pidfile
-azura.sh
+*.sh
+bin/Lavalink.jar
+application.yml
+logs/
+libs/orm/old.py

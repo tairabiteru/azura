@@ -75,7 +75,7 @@ def command(name=None, cls=None, **attrs):
 def permission_exists(bot, node):
     if node == "bot.*":
         return True
-        
+
     for cog in bot.cogs:
         if node == cog.lower() + ".*":
             return True

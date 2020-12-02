@@ -10,144 +10,198 @@ from marshmallow import Schema, fields, post_load
 import math
 import os
 import random
+import discord
+
+
+class PlaylistExists(Exception):
+    """Raised when a playlist to be added already exists."""
+    pass
+
+class PlaylistNotFound(Exception):
+    """Raised when a playlist is expected to exist, but doesn't."""
+
+class EntryNotFound(Exception):
+    """Raised when an entry is expected to exist, but doesn't."""
+    pass
+
+class EntryExists(Exception):
+    """Raised when an entry is added to a playlist which already contains it."""
+    pass
 
 
 class MemberSchema(Schema):
     uid = fields.Int(required=True)
     name = fields.Str()
     acl = fields.Dict()
-    playlist_names = fields.List(fields.Str)
-    playlist_entries = fields.Dict(keys=fields.Str, values=fields.Nested(PlaylistEntrySchema))
+    playlists = fields.Dict(keys=fields.Str, values=fields.List(fields.Nested(PlaylistEntrySchema)))
     selected = fields.Str()
     history = fields.List(fields.Str)
-    last_volume = fields.Float()
-    volume_step = fields.Float()
+    last_volume = fields.Int()
+    volume_step = fields.Int()
 
     @post_load
     def make_obj(self, data, **kwargs):
         return Member(**data)
 
-
 class Member:
     @classmethod
     def obtain(cls, uid):
         try:
-            with open(os.path.join(settings['orm']['memberDirectory'], str(uid) + "_" + cls.__name__ + ".json"), 'r', encoding='utf-8') as file:
-                return MemberSchema().load(json.load(file))
+            filename = os.path.join(settings['orm']['memberDirectory'], f"{uid}_{cls.__name__}.json")
+            with open(filename, 'r', encoding='utf-8') as file:
+                out = MemberSchema().load(json.load(file))
+                return out
         except FileNotFoundError:
-            return cls(uid)
+            return cls(uid=uid)
 
-    def __init__(self, uid, **kwargs):
-        self.uid = uid
+    def __init__(self, **kwargs):
+        self.uid = kwargs['uid']
         self.name = kwargs['name'] if 'name' in kwargs else "unknown"
         self.acl = kwargs['acl'] if 'acl' in kwargs else {}
-        self.playlist_names = kwargs['playlist_names'] if 'playlist_names' in kwargs else []
-        self.playlist_entries = kwargs['playlist_entries'] if 'playlist_entries' in kwargs else {}
+        self.playlists = kwargs['playlists'] if 'playlists' in kwargs else {}
         self.selected = kwargs['selected'] if 'selected' in kwargs else ""
         self.history = kwargs['history'] if 'history' in kwargs else []
-        self.last_volume = kwargs['last_volume'] if 'last_volume' in kwargs else 0.5
-        self.volume_step = kwargs['volume_step'] if 'volume_step' in kwargs else 0.05
+        self.last_volume = kwargs['last_volume'] if 'last_volume' in kwargs else 50
+        self.volume_step = kwargs['volume_step'] if 'volume_step' in kwargs else 5
 
-    @property
-    def lower_playlist_names(self):
-        return list([name.lower() for name in self.playlist_names])
-
-    def update_history(self, history_entry):
-        self.history.append(history_entry)
-        if len(self.history) > 5000:
-            self.history.pop(0)
-        self.save()
-
-    def increment_playback(self, vid, title):
-        history_entry = vid + " :=: " + title
-        self.update_history(history_entry)
-        song = GlobalSongData.obtain(vid=vid)
-        global_data = GlobalSongData.obtain()
-        if not song.title:
-            song.title = title
-        song.increment_plays(self.uid)
-        global_data.updateSong(song)
-
-    def get_plays(self, vid=None):
-        return GlobalSongData.obtain(vid=vid).plays_by(uid=self.uid)
+    def playlist_exists(self, name):
+        for playlist in self.playlists:
+            if playlist.lower() == name.lower():
+                return playlist
+        return None
 
     def add_playlist(self, name):
-        if name.lower() in list([playlist_name.lower() for playlist_name in self.playlist_names]):
-            raise PlaylistExistsError("'" + name + "' is already an entry in this user's playlists.")
-        self.playlist_names.append(name)
+        if self.playlist_exists(name):
+            raise PlaylistExists
+        self.playlists[name] = []
         self.save()
 
-    def delete_playlist(self, name):
-        if name.lower() not in list([playlist_name.lower() for playlist_name in self.playlist_names]):
-            raise PlaylistNotFoundError("A playlist with the name '" + name + "' does not exist.")
-        for playlist in self.playlist_names:
-            if playlist.lower() == name.lower():
-                self.playlist_names.remove(playlist)
-                for vid, entry in self.playlist_entries.items():
-                    if playlist.lower() in entry.playlists:
-                        print(entry.playlists)
-                        entry.playlists.remove(playlist)
-                        self.playlist_entries[vid] = entry
-        self.save()
-
-    def add_playlist_entry(self, playlist_entry):
-        try:
-            existing_entry = self.playlist_entries[playlist_entry.vid]
-            if any([playlist in existing_entry.playlists for playlist in playlist_entry.playlists]):
-                raise DuplicatePlaylistError("One or more of the playlists being added already exist in the entry.")
-            if any([playlist not in self.playlist_names for playlist in playlist_entry.playlists]):
-                raise PlaylistNotFoundError("One or more of the playlists being added do not exist in this user's playlists.")
-            existing_entry.playlists += playlist_entry.playlists
-            self.playlist_entries[existing_entry.vid] = existing_entry
-        except KeyError:
-            self.playlist_entries[playlist_entry.vid] = playlist_entry
-        self.save()
-
-    def vid_exists(self, vid):
-        return any([entry.vid == vid for videoid, entry in self.playlist_entries.items()])
-
-    def remove_playlist_from_entry(self, playlist_entry):
-        for playlist in playlist_entry.playlists:
-            self.playlist_entries[playlist_entry.vid].playlists.remove(playlist)
-        if len(self.playlist_entries[playlist_entry.vid].playlists) == 0:
-            self.delete_playlist_entry(playlist_entry)
+    def del_playlist(self, name):
+        playlist = self.playlist_exists(name)
+        if playlist:
+            del self.playlists[playlist]
+            if playlist == self.selected:
+                self.selected = ""
             self.save()
-            return True
+        else:
+            raise PlaylistNotFound
+
+    def playlist_embed(self, name=None):
+        colour = discord.Colour(0x14ff)
+        # If no playlists have been defined.
+        if len(self.playlists) == 0:
+            title = "__No Playlists__"
+            desc = "You have not yet created any playlists."
+            return discord.Embed(title=title, colour=colour, description=desc)
+
+        # If we want a list of playlists.
+        if not name:
+            title = "__All Playlists__"
+            desc = ""
+            for playlist in self.playlists:
+                if playlist.lower() == self.selected.lower():
+                    desc += f"🠊 {playlist}\n"
+                else:
+                    desc += f"• {playlist}\n"
+            desc = f"```CSS\n{desc}```"
+            return discord.Embed(title=title, colour=colour, description=desc)
+
+        # If no such playlist exists.
+        name = self.playlist_exists(name)
+        if not name:
+            raise PlaylistNotFound
+
+        title = f"__{name}__"
+        if len(self.playlists[name]) == 0:
+            desc = "This playlist is empty."
+            return discord.Embed(title=title, colour=colour, description=desc)
+
+        # Otherwise, the playlist exists, and has songs in it.
+        desc = ""
+        for i, entry in enumerate(self.playlists[name]):
+            desc += f"{i+1}. "
+            if entry.custom_title:
+                desc += f"{entry.custom_title}\n"
+            else:
+                desc += f"{entry.generator}\n"
+        desc = f"```CSS\n{desc}```"
+        return discord.Embed(title=title, colour=colour, description=desc)
+
+    def get_playlist(self, name):
+        for playlist, entries in self.playlists.items():
+            if playlist.lower() == name.lower():
+                return (playlist, entries)
+        else:
+            raise PlaylistNotFound
+
+    def add_playlist_entry(self, playlist, entry):
+        playlist = self.playlist_exists(playlist)
+        if not playlist:
+            raise PlaylistNotFound
+        if entry.custom_title:
+            if any([entry.custom_title == e.custom_title for e in self.playlists[playlist]]):
+                raise EntryExists
+        if any([entry.generator == e.generator for e in self.playlists[playlist]]):
+            raise EntryExists
+        self.playlists[playlist].append(entry)
         self.save()
-        return False
 
-    def delete_playlist_entry(self, title_or_generator):
-        found = False
-        for videoid, entry in self.playlist_entries.items():
-            if entry.generator == title_or_generator:
-                entry = self.playlist_entries.pop(entry.vid)
-                self.save()
-                return entry
-        for videoid, entry in self.playlist_entries.items():
-            if entry.custom_title.lower() == title_or_generator.lower():
-                entry = self.playlist_entries.pop(entry.vid)
-                self.save()
-                return entry
-        raise PlaylistEntryNotFoundError
+    def delete_playlist_entry(self, playlist, identifier):
+        if not self.playlist_exists(playlist):
+            raise PlaylistNotFound
+        new = []
+        removed = None
+        for entry in self.playlists[playlist]:
+            if entry.custom_title and identifier == entry.custom_title:
+                removed = entry
+            elif identifier == entry.generator:
+                removed = entry
+            else:
+                new.append(entry)
+        if not removed:
+            raise EntryNotFound
+        self.playlists[playlist] = new
+        self.save()
+        return removed
 
-    def entries_in_playlist(self, name):
-        if name.lower() not in list([playlist_name.lower() for playlist_name in self.playlist_names]):
-            raise PlaylistNotFoundError
-        entries = []
-        for vid, entry in self.playlist_entries.items():
-            if name.lower() in list([playlist_name.lower() for playlist_name in entry.playlists]):
-                entries.append(entry)
-        return entries
+    def delete_from_all(self, identifier):
+        removed = []
+        for playlist in self.playlists:
+            try:
+                r = self.delete_playlist_entry(playlist, identifier)
+                removed.append(r)
+            except EntryNotFound:
+                pass
+        if not removed:
+            raise EntryNotFound
+        return removed
 
-    def get_proper_playlist_name(self, name):
-        for playlist_name in self.playlist_names:
-            if name.lower() == playlist_name.lower():
-                return playlist_name
+    def member_playlists(self, identifier):
+        playlists = []
+        for playlist, entries in self.playlists.items():
+            for entry in entries:
+                if identifier == entry.custom_title and playlist not in playlists:
+                    playlists.append(playlist)
+                elif identifier == entry.generator and playlist not in playlists:
+                    playlists.append(playlist)
+        return playlists
+
+    def update_history(self, track):
+        while len(self.history) + 1 > settings['orm']['maxHistoryRecords']:
+            self.history.pop(0)
+        self.history.append(track.title)
+        gsd = GlobalSongData.obtain()
+        sde = GlobalSongData.obtain(entry=track)
+        sde.increment_plays(self.uid)
+        gsd.updateEntry(sde)
+
+        self.save()
 
     def save(self):
         try:
             os.makedirs(settings['orm']['memberDirectory'])
         except FileExistsError:
             pass
-        with open(os.path.join(settings['orm']['memberDirectory'], str(self.uid) + "_" + self.__class__.__name__ + ".json"), 'w', encoding='utf-8') as file:
+        filename = os.path.join(settings['orm']['memberDirectory'], f"{self.uid}_{self.__class__.__name__}.json")
+        with open(filename, 'w', encoding='utf-8') as file:
             json.dump(MemberSchema().dump(self), file, indent=4, separators=(',', ': '))

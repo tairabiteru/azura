@@ -1,9 +1,9 @@
 from libs.core.conf import settings
 from libs.core.permissions import command
-from libs.orm.playlist import *
-from libs.orm.member import Member
+from libs.orm.member import Member, PlaylistExists, PlaylistNotFound, EntryExists, EntryNotFound
+from libs.orm.playlist import PlaylistEntry
 from libs.orm.songdata import GlobalSongData
-from libs.ext.player import YTDLSource
+from libs.ext.utils import SimpleValidation
 
 import discord
 from discord.ext import commands
@@ -74,12 +74,14 @@ class Playlisting(commands.Cog):
         """
         if not member:
             member = ctx.author
-        output = "__:musical_note: " + member.name + "'s Last 15 Songs :musical_note:__\n```css\n"
-        for i, entry in enumerate(reversed(Member.obtain(ctx.author.id).history)):
-            output += str(i+1) + ". " + entry.split(":=:")[-1].strip() + "\n"
+        output = f"__:musical_note: {member.name}'s Last 15 Songs :musical_note:__\n```css\n"
+        member = Member.obtain(member.id)
+        for i, entry in enumerate(reversed(member.history)):
+            output += f"{i+1}. {entry}\n"
             if i+1 == 15:
+                output += '```'
                 break
-        await ctx.send(output + "```", delete_after=60)
+        return await ctx.send(output)
 
     @command(aliases=['pladd', 'addpl', 'pla', 'apl'])
     async def add_playlist(self, ctx, *, name):
@@ -104,7 +106,7 @@ class Playlisting(commands.Cog):
         try:
             member.add_playlist(name)
             await ctx.send("Playlist `" + name + "` has been added.")
-        except PlaylistExistsError:
+        except PlaylistExists:
             await ctx.send("The specified playlist `" + name + "` already exists.")
 
     @command(aliases=['delpl', 'pldel', 'pld', 'dpl', 'rmplaylist', 'rmpl'])
@@ -127,11 +129,19 @@ class Playlisting(commands.Cog):
         `{pre}{command_name} Lo-Fi`
         """
         member = Member.obtain(ctx.author.id)
-        try:
-            member.delete_playlist(name)
-            await ctx.send("Playlist `" + name + "` has been deleted.")
-        except PlaylistNotFoundError:
-            await ctx.send("The specified playlist `" + name + "` does not exist.")
+        if not member.playlist_exists(name):
+            return await ctx.send(f"No playlist named `{name}` exists.")
+        if len(member.playlists[name]) == 0:
+            member.del_playlist(name)
+        else:
+            warning = f"You are about to delete the playlist `{name}`, which still has songs in it. This action is __NOT REVERSABLE__."
+            async with SimpleValidation(ctx, warning) as validation:
+                if not validation:
+                    return await ctx.send("Operation cancelled.")
+                else:
+                    member.del_playlist(name)
+        return await ctx.send(f"The playlist `{name}` has been deleted.")
+
 
     @command(aliases=['plshow', 'showpl', 'lspl'])
     async def show_playlist(self, ctx, *, name=None):
@@ -144,7 +154,7 @@ class Playlisting(commands.Cog):
 
         __**Description**__
         Lists the specified playlist. If no playlist is specified, it lists all
-        playlists. A playlist with `#` in front of its name is the selected
+        playlists. A playlist with `🠊` in front of its name is the selected
         playlist.
 
         __**Arguments**__
@@ -156,32 +166,15 @@ class Playlisting(commands.Cog):
         `{pre}{command_name} Lo-Fi`
         """
         member = Member.obtain(ctx.author.id)
-        if not name:
-            if len(member.playlist_names) == 0:
-                return await ctx.send("You have not defined any playlists.")
-            msg = "__Your Playlists__\nSelected playlist is displayed with a `#`\n\n"
-            for playlist in member.playlist_names:
-                if playlist == member.selected:
-                    msg += " # " + playlist + "\n"
-                else:
-                    msg += " - " + playlist + "\n"
-            return await ctx.send(msg)
-        else:
-            msg = "__" + name + "__\n"
-            try:
-                entries = member.entries_in_playlist(name)
-            except PlaylistNotFoundError:
-                return await ctx.send("The specified playlist `" + name + "` does not exist.")
-            if not entries:
-                return await ctx.send("There are no songs in `" + name + "`")
-            for entry in member.entries_in_playlist(name):
-                msg += " - " + entry.name + "\n"
-            return await ctx.send(msg)
+        try:
+            return await ctx.send(embed=member.playlist_embed(name=name))
+        except PlaylistNotFound:
+            return await ctx.send(f"The specified playlist `{name}` does not exist.")
 
     @command(aliases=['adds', 'addsong'])
     async def add_song(self, ctx, *, cmdtext):
         """
-        Syntax: `{pre}{command_name} <URL/SearchTerm> [--options]`
+        Syntax: `{pre}{command_name} <generator> [--options]`
 
         **Aliases:** `{aliases}`
         **Node:** `{node}`
@@ -213,7 +206,7 @@ class Playlisting(commands.Cog):
         video.
 
         __**Arguments**__
-        `<URL/SearchTerm>` - The URL or search term that spawns the song to be
+        `<generator>` - The URL or search term that spawns the song to be
         added. To know what URLs can be used, run `{pre}help play`.
         `[--options]` - Any of the options listed above. The order they are
         specified in, or whether or not all are specified does not matter.
@@ -226,23 +219,26 @@ class Playlisting(commands.Cog):
         member = Member.obtain(ctx.author.id)
         generator, custom_title, playlists, start, end = parse_args(cmdtext)
         if not generator:
-            return await ctx.send("Song generator not specified. You must specify either the search term that brings up the song you want, or you must specify the URL of the song.")
-
+            return await ctx.send("Song generator not specified. The generator is the URL or search term that spawns the video.")
         if not member.selected and not playlists:
             return await ctx.send("You have not selected a playlist, nor have you specified a playlist to add this song to. You must do one or the other.")
         if not playlists:
             playlists = [member.selected]
-        if any([playlist.lower() not in member.lower_playlist_names for playlist in playlists]):
-            return await ctx.send("One of the playlists you specified does not exist.")
 
-        src = await YTDLSource.create_source(ctx, generator)
-        vid = src.id
-
-        entry = PlaylistEntry(generator=generator, vid=vid, custom_title=custom_title, start_time=start, end_time=end, playlists=playlists)
-        if member.vid_exists(vid):
-            await ctx.send("Entry with existing VID found. Merging.")
-        member.add_playlist_entry(entry)
-        await ctx.send("Entry added.")
+        fakeplaylists = []
+        for playlist in playlists:
+            if not member.playlist_exists(playlist):
+                fakeplaylists.append(playlist)
+        if any(fakeplaylists):
+            fakeplaylists = "`, `".join(fakeplaylists)
+            return await ctx.send(f"The following playlists you specified do not exist:\n`{fakeplaylists}`")
+        try:
+            entry = PlaylistEntry(generator=generator, custom_title=custom_title, start_time=start, end_time=end)
+            for playlist in playlists:
+                member.add_playlist_entry(playlist, entry)
+            return await ctx.send("Entry added:", embed=entry.embed(member))
+        except EntryExists:
+            return await ctx.send("The name or generator already exists in the selected or specified playlists.")
 
     @command(aliases=['rmsong', 'delsong', 'dels'])
     async def delete_song(self, ctx, *, title):
@@ -268,10 +264,15 @@ class Playlisting(commands.Cog):
         """
         member = Member.obtain(ctx.author.id)
         try:
-            entry = member.delete_playlist_entry(title)
-            await ctx.send("Entry with VID `" + entry.vid + "` and generator `" + entry.generator + "` has been deleted.")
-        except PlaylistEntryNotFoundError:
-            await ctx.send("No entry with a generator or title of `" + title + "` was found.")
+            if len(member.member_playlists(title)) > 1:
+                warning = "This command deletes songs from __ALL__ playlists, and this song is apart of more than one playlist. This action is also not reversable."
+                async with SimpleValidation(ctx, warning) as validation:
+                    if not validation:
+                        return await ctx.send("Operation cancelled.")
+            entries = member.delete_from_all(title)
+            return await ctx.send(f"Deleted `{title}` from {len(entries)} playlist(s).")
+        except EntryNotFound:
+            await ctx.send(f"No entry with a generator or title of `{title}` was found.")
 
     @command(aliases=['rmplsong', 'delplsong'])
     async def delete_playlist_song(self, ctx, *, title):
@@ -298,16 +299,10 @@ class Playlisting(commands.Cog):
         if not member.selected:
             return await ctx.send("You don't have a playlist selected.")
         try:
-            entry = member.get_entry_by_title(title)
-            try:
-                entry.playlists.remove(member.selected)
-                member.playlist_entries[entry.vid] = entry
-                member.save()
-                await ctx.send("`" + entry.name + "` removed from `" + member.selected + "`.")
-            except ValueError:
-                return await ctx.send("`" + entry.name + "` is not in the playlist `" + member.selected + "`.")
-        except PlaylistEntryNotFoundError:
-            await ctx.send("No entry by that name exists.")
+            entry = member.delete_playlist_entry(member.selected, title)
+            return await ctx.send(f"Removed `{title}` from `{member.selected}`.")
+        except EntryNotFound:
+            await ctx.send(f"No entry identified by `{title}` exists.")
 
     @command(aliases=['plsel', 'selpl', 'plselect', 'selectpl'])
     async def select_playlist(self, ctx, *, name):
@@ -330,13 +325,12 @@ class Playlisting(commands.Cog):
         `{pre}{command_name} Lo-Fi`
         """
         member = Member.obtain(ctx.author.id)
-        if name.lower() not in member.lower_playlist_names:
-            return await ctx.send("The specified playlist `" + name + "` does not exist.")
-
-        name = member.get_proper_playlist_name(name)
+        if not member.playlist_exists(name):
+            return await ctx.send(f"The specified playlist `{name}` does not exist.")
+        name, _ = member.get_playlist(name)
         member.selected = name
         member.save()
-        await ctx.send("`" + name + "` is now the selected playlist.")
+        await ctx.send(f"`{name}` is now the selected playlist.")
 
 
 def setup(bot):

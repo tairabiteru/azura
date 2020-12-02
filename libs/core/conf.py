@@ -46,6 +46,7 @@ def buildSettings():
         settings['bot']['rootDirectory'] = os.getcwd()
         settings['bot']['bashPath'] = os.path.join(settings['bot']['rootDirectory'], settings['bot']['name'].lower() + ".sh")
         settings['bot']['mainPath'] = os.path.join(settings['bot']['rootDirectory'], "main.py")
+        settings['bot']['binDirectory'] = os.path.join(settings['bot']['rootDirectory'], "bin/")
         settings['bot']['storageDirectory'] = os.path.join(settings['bot']['rootDirectory'], "storage/")
         settings['bot']['tempDirectory'] = os.path.join(settings['bot']['storageDirectory'], "temp/")
         settings['bot']['assetDirectory'] = os.path.join(settings['bot']['rootDirectory'], "assets/")
@@ -63,17 +64,28 @@ def buildSettings():
         dash['fileUploadDirectory'] = os.path.join(dash['rootDirectory'], "file_uploads")
         settings['dash'] = dash
 
+        wavelink = {}
+        wavelink['jvmPath'] = "/usr/lib/jvm/java-13-openjdk-amd64/bin/java"
+        wavelink['lavalinkPath'] = os.path.join(settings['bot']['binDirectory'], "Lavalink.jar")
+        wavelink['suppressLavalinkOutput'] = True
+        wavelink['host'] = "localhost"
+        wavelink['port'] = 2333
+        wavelink['password'] = ""
+        wavelink['voice_region'] = us_central
+        wavelink['compBarLength'] = 40
+        settings['wavelink'] = wavelink
+
         orm = {}
         orm['databaseDirectory'] = os.path.join(settings['bot']['storageDirectory'], "database/")
         orm['memberDirectory'] = os.path.join(orm['databaseDirectory'], "members/")
         orm['serverDirectory'] = os.path.join(orm['databaseDirectory'], "servers/")
         orm['botDirectory'] = os.path.join(orm['databaseDirectory'], "bot/")
+        orm['maxHistoryRecords'] = 1000
         settings['orm'] = orm
 
         cogs = {}
 
         music = {}
-        music['ytdlDirectory'] = os.path.join(settings['bot']['tempDirectory'], "YTDL")
         music['connectionTimeout'] = 180
         cogs['music'] = tools
 
