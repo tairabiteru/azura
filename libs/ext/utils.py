@@ -253,3 +253,24 @@ def progressBar(num, denom, length=40):
     bars_completed = "=" * int(length * completion_ratio)
     bars_left = "-" * (length - len(bars_completed))
     return f"[{bars_completed}{bars_left}]"
+
+def serializeTimestamp(ts):
+    try:
+        ts = int(ts)
+        return ts
+    except ValueError:
+        pass
+
+    ts = ts.split(":")
+    if len(ts) not in [2, 3]:
+        raise ValueError("Invalid timestamp specification.")
+
+    multiplier = 1
+    total = 0
+    for segment in reversed(ts):
+        segment = int(segment)
+        if segment < 0:
+            raise ValueError("Segments must be positive.")
+        total += segment * multiplier
+        multiplier *= 60
+    return total

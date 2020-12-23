@@ -126,7 +126,6 @@ dmypy.json
 *.json
 *.toml
 storage/*
-assets/dash/*
 pidfile
 *.sh
 bin/Lavalink.jar

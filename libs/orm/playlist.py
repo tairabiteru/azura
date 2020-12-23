@@ -27,13 +27,19 @@ class PlaylistEntry:
 
     @property
     def start_timestamp(self):
-        delta = datetime.timedelta(seconds=self.start)
-        return strfdelta(delta, "{%H}:{%M}:{%S}")
+        if self.start != 0:
+            delta = datetime.timedelta(seconds=self.start)
+            return strfdelta(delta, "{%H}:{%M}:{%S}")
+        else:
+            return ""
 
     @property
     def end_timestamp(self):
-        delta = datetime.timedelta(seconds=self.end)
-        return strfdelta(delta, "{%H}:{%M}:{%S}")
+        if self.end != -1:
+            delta = datetime.timedelta(seconds=self.end)
+            return strfdelta(delta, "{%H}:{%M}:{%S}")
+        else:
+            return ""
 
     def embed(self, member):
         title = self.custom_title if self.custom_title else self.generator

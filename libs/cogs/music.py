@@ -15,6 +15,19 @@ import random
 from discord.ext import commands
 
 
+BUTTONS = {
+    "LOWER_VOLUME": '🔉',
+    "RAISE_VOLUME": '🔊',
+    "LAST": '⏮️',
+    "STOP": '⏹️',
+    "DISCONNECT": '⏏️',
+    "PAUSE_RESUME": '⏯️',
+    "NEXT": '⏭️',
+    "LOOP_ONE": '🔂',
+    "LOOP_ALL": '🔁'
+}
+
+
 class Music(commands.Cog, wavelink.WavelinkMixin):
     def __init__(self, bot):
         self.bot = bot
@@ -26,6 +39,60 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if not member.bot and after.channel is None:
             if not [m for m in before.channel.members if not m.bot]:
                 await self.get_player(member.guild).teardown()
+
+    @commands.Cog.listener()
+    async def on_reaction_add(self, reaction, user):
+        await self.handle_button(reaction, user)
+
+    @commands.Cog.listener()
+    async def on_reaction_remove(self, reaction, user):
+        await self.handle_button(reaction, user)
+
+    async def handle_button(self, reaction, user):
+        if user.id == self.bot.user.id:
+            return
+
+        player = self.get_player(reaction.message.guild)
+        try:
+            if reaction.message.id != player.plyrmsg.id:
+                return
+        except AttributeError:
+            pass
+
+        member = Member.obtain(user.id)
+
+        if reaction.emoji == BUTTONS['LOWER_VOLUME']:
+            volume = player.volume - member.volume_step
+            await player.set_volume(volume)
+        if reaction.emoji == BUTTONS['RAISE_VOLUME']:
+            volume = player.volume + member.volume_step
+            await player.set_volume(volume)
+        if reaction.emoji == BUTTONS['STOP']:
+            if player.enqueueing:
+                player.stop_signal = True
+            player.queue.clear()
+            await player.stop()
+            await player.plyrmsg.channel.send(f"Playback stopped by {user.name}.")
+        if reaction.emoji == BUTTONS['DISCONNECT']:
+            await player.teardown()
+            await player.plyrmsg.channel.send(f"Disconnected by {user.name}.")
+        if reaction.emoji == BUTTONS['PAUSE_RESUME']:
+            await player.set_pause(not player.is_paused)
+            state = "paused" if player.is_paused else "resumed"
+            await player.plyrmsg.channel.send(f"Playback {state}.", delete_after=15)
+        if reaction.emoji == BUTTONS['NEXT']:
+            await player.stop()
+        if reaction.emoji == BUTTONS['LAST']:
+            player.queue.position -= 2
+            await player.stop()
+        if reaction.emoji == BUTTONS['LOOP_ONE']:
+            player.queue.repeat_mode = Repeat.NONE if player.queue.repeat_mode != Repeat.NONE else Repeat.ONE
+            mode = "REPEAT ONE" if player.queue.repeat_mode == Repeat.ONE else "OFF"
+            await player.plyrmsg.channel.send(f"Repeat mode set to `{mode}`.", delete_after=15)
+        if reaction.emoji == BUTTONS['LOOP_ALL']:
+            player.queue.repeat_mode = Repeat.NONE if player.queue.repeat_mode != Repeat.NONE else Repeat.ALL
+            mode = "REPEAT ALL" if player.queue.repeat_mode == Repeat.ALL else "OFF"
+            await player.plyrmsg.channel.send(f"Repeat mode set to `{mode}`.", delete_after=15)
 
     @wavelink.WavelinkMixin.listener()
     async def on_node_ready(self, node):
@@ -62,12 +129,22 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player, track = (payload.player, payload.player.queue.current_track)
         member = Member.obtain(track.requester.id)
         member.update_history(track)
+        messages = await track.ctx.channel.history(limit=2).flatten()
+        messages = list([message.id for message in messages])
+
         try:
-            await player.infomsg.edit(embed=player.queue.info_embed(self.bot))
-            await player.plyrmsg.edit(embed=player.player_embed())
+            if player.infomsg.id in messages and player.plyrmsg.id in messages:
+                await player.infomsg.edit(embed=player.queue.info_embed(self.bot))
+                await player.plyrmsg.edit(embed=player.player_embed())
+            else:
+                await player.infomsg.delete()
+                await player.plyrmsg.delete()
+                raise AttributeError
         except (AttributeError, discord.errors.NotFound) as e:
             player.infomsg = await track.ctx.send(embed=player.queue.info_embed(self.bot))
             player.plyrmsg = await track.ctx.send(embed=player.player_embed())
+            for button in list(BUTTONS.values()):
+                await player.plyrmsg.add_reaction(button)
         player.interface_task = self.bot.loop.create_task(self.interface_updater(track.ctx, track.id))
 
     def get_player(self, obj):
@@ -244,10 +321,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             msg += f" with {len(failures)} failure(s):```CSS\n"
             for failure in failures:
                 msg += f"{failure.generator} - {failure.custom_title}\n"
-            msg += "```"
+            msg += "```\nThis is usually because the videos have been removed from Youtube."
+            await ctx.send(msg)
         else:
-            msg += "."
-        await ctx.send(msg)
+            await ctx.send(msg + ".", delete_after=30)
 
     @command()
     async def pause(self, ctx):
@@ -319,6 +396,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         """
         player = self.get_player(ctx)
         player.queue.clear()
+        if player.enqueueing:
+            player.stop_signal = True
         await player.stop()
         await ctx.send("Playback terminated, queue emptied.")
 
@@ -496,7 +575,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         """
         player = self.get_player(ctx)
 
-        if not player.is_connected:
+        if not player.is_connected or not player.is_playing:
             return await ctx.send("I'm not playing anything.")
 
         try:
@@ -506,6 +585,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             pass
         player.infomsg = await ctx.send(embed=player.queue.info_embed(ctx.bot))
         player.plyrmsg = await ctx.send(embed=player.player_embed())
+
+        for button in list(BUTTONS.values()):
+            await player.plyrmsg.add_reaction(button)
 
     @command(aliases=['vol'])
     async def volume(self, ctx, volume):
@@ -601,6 +683,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             msg += "```"
         else:
             msg += "."
+        print(msg)
         await ctx.send(msg)
 
 

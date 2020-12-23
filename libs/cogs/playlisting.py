@@ -332,6 +332,26 @@ class Playlisting(commands.Cog):
         member.save()
         await ctx.send(f"`{name}` is now the selected playlist.")
 
+    @command(aliases=['pledit', 'editpage'])
+    async def edit_playlist(self, ctx):
+        """
+        Syntax: `{pre}{command_name}`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Displays the URL to edit your playlists.
+
+        __**Arguments**__
+        This command takes no arguments.
+
+        __**Example Usage**__
+        `{pre}{command_name}`
+        """
+        return await ctx.send(settings['dash']['outfacingURL'])
+
 
 def setup(bot):
     """Set up cog."""

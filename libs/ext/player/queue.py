@@ -96,7 +96,7 @@ class Queue:
     def set_repeat_mode(self, mode):
         if mode == "none":
             self.repeat_mode = Repeat.NONE
-        elif mode == "1":
+        elif mode == "one":
             self.repeat_mode = Repeat.ONE
         elif mode == "all":
             self.repeat_mode = Repeat.ALL

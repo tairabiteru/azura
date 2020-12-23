@@ -56,6 +56,7 @@ def buildSettings():
         dash['enabled'] = False
         dash['host'] = "localhost"
         dash['port'] = 8080
+        dash['outfacingURL'] = ""
         dash['serverInvite'] = ""
         dash['tagsEnabledGuild'] = 0
         dash['rootDirectory'] = os.path.join(settings['bot']['assetDirectory'], "dash")

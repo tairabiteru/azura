@@ -1,8 +1,8 @@
 from libs.core.conf import settings
 from libs.ext.utils import ms_as_ts, url_is_valid, progressBar, localnow
-from libs.ext.player.queue import Queue
+from libs.ext.player.queue import Queue, Repeat
 from libs.ext.player.track import Track
-from libs.ext.player.errors import AlreadyConnectedToChannel, NoVoiceChannel, NoTracksFound
+from libs.ext.player.errors import AlreadyConnectedToChannel, NoVoiceChannel, NoTracksFound, QueueIsEmpty
 
 import asyncio
 import random
@@ -31,6 +31,9 @@ class Player(wavelink.Player):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.queue = Queue()
+        self.enqueueing = False
+        self.stop_signal = False
+
 
     async def connect(self, ctx, channel=None):
         if self.is_connected:
@@ -49,13 +52,27 @@ class Player(wavelink.Player):
         except KeyError:
             pass
 
+    @property
+    def current_repeat_mode(self):
+        if self.queue.repeat_mode == Repeat.NONE:
+            return "Off"
+        elif self.queue.repeat_mode == Repeat.ONE:
+            return "Current Song"
+        elif self.queue.repeat_mode == Repeat.ALL:
+            return "Current Queue"
+
     async def add_playlist(self, ctx, wl, playlist):
         enqueued = []
         failures = []
         length = settings['wavelink']['compBarLength']
         progress = progressBar(0, len(playlist), length=length)
         progressMsg = await ctx.send(f"Enqueueing {len(playlist)} song(s)\n`0 {progress} {len(playlist)}`")
+        self.enqueueing = True
         for i, entry in enumerate(playlist):
+            if self.stop_signal:
+                self.queue.clear()
+                break
+
             if not url_is_valid(entry.generator):
                 query = f"ytsearch:{entry.generator}"
             else:
@@ -65,16 +82,20 @@ class Player(wavelink.Player):
                 failures.append(entry)
                 continue
 
-            track = Track(tracks[0], ctx=ctx, requester=ctx.author)
+            track = Track(tracks[0], ctx=ctx, requester=ctx.author, start=entry.start, end=entry.end)
             self.queue.add(track)
             enqueued.append(track)
 
             progress = progressBar(i+1, len(playlist), length=length)
             await progressMsg.edit(content=f"Enqueueing {len(playlist)} song(s)\n`{i+1} {progress} {len(playlist)}`")
-
+            await asyncio.sleep(settings['wavelink']['enqueueingShotDelay'])
             if not self.is_playing and not self.queue.empty:
                 await self.start_playback()
 
+        # Should be replaced with some kind of exception.
+        # Ex: raise EnqueueingStopped
+        self.enqueueing = False
+        self.stop_signal = False
         return (enqueued, failures)
 
     async def add_tracks(self, ctx, tracks):
@@ -151,12 +172,19 @@ class Player(wavelink.Player):
                 return tracks[OPTSM[message.content]]
 
     async def start_playback(self):
-        await self.play(self.queue.current_track)
+        track = self.queue.current_track
+        if track.end != -1:
+            await self.play(track, start=track.start, end=track.end)
+        else:
+            await self.play(track, start=track.start)
 
     async def advance(self):
         try:
             if (track := self.queue.get_next_track()) is not None:
-                await self.play(track)
+                if track.end != -1:
+                    await self.play(track, start=track.start, end=track.end)
+                else:
+                    await self.play(track, start=track.start)
         except QueueIsEmpty:
             pass
 
@@ -176,4 +204,5 @@ class Player(wavelink.Player):
         embed.add_field(name="Time Elapsed", value=ms_as_ts(self.position))
         embed.add_field(name="Time Left", value=ms_as_ts(self.queue.current_track.length - self.position))
         embed.add_field(name="Volume", value="{}%".format(self.volume))
+        embed.add_field(name="Repeat", value=self.current_repeat_mode)
         return embed
