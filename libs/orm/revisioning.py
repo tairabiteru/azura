@@ -1,5 +1,5 @@
 from libs.core.log import logprint
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.ext.utils import localnow
 
 import json
@@ -52,7 +52,7 @@ class Revision:
             chars = 0
             fs = 0
             size = 0
-            for subdir, dirs, files in os.walk(settings['bot']['rootDirectory']):
+            for subdir, dirs, files in os.walk(conf.rootDir):
                 for file in files:
                     fs += 1
                     size += os.path.getsize(os.path.join(subdir, file))
@@ -74,8 +74,8 @@ class Revision:
         self.files = kwargs['files'] if 'files' in kwargs else fs
         self.size = kwargs['size'] if 'size' in kwargs else size
         self.number = kwargs['number'] if 'number' in kwargs else Revisioning.obtain().current.number + 1
-        self.major_version = kwargs['major_version'] if 'major_version' in kwargs else settings['bot']['majorVersion']
-        self.version_tag = kwargs['version_tag'] if 'version_tag' in kwargs else settings['bot']['versionTag']
+        self.major_version = kwargs['major_version'] if 'major_version' in kwargs else conf.VERSION
+        self.version_tag = kwargs['version_tag'] if 'version_tag' in kwargs else conf.VERSIONTAG
         self.timestamp = kwargs['timestamp'] if 'timestamp' in kwargs else localnow()
 
     def isLatest(self):
@@ -101,14 +101,14 @@ class Revisioning:
     @classmethod
     def obtain(cls):
         try:
-            with open(os.path.join(settings['orm']['botDirectory'], "revisioning.json"), 'r', encoding='utf-8') as file:
+            with open(os.path.join(conf.orm.botDir, "revisioning.json"), 'r', encoding='utf-8') as file:
                 return RevisioningSchema().load(json.load(file))
         except (FileNotFoundError, json.decoder.JSONDecodeError) as e:
             return cls()
 
     def __init__(self, **kwargs):
-        self.revisions = kwargs['revisions'] if 'revisions' in kwargs else [Revision(major_version=settings['bot']['majorVersion'], number=0, version_tag=settings['bot']['versionTag'])]
-        self.current = kwargs['current'] if 'current' in kwargs else Revision(major_version=settings['bot']['majorVersion'], number=0, version_tag=settings['bot']['versionTag'])
+        self.revisions = kwargs['revisions'] if 'revisions' in kwargs else [Revision(major_version=conf.VERSION, number=0, version_tag=conf.VERSIONTAG)]
+        self.current = kwargs['current'] if 'current' in kwargs else Revision(major_version=conf.VERSION, number=0, version_tag=conf.VERSIONTAG)
         self.save()
 
     def revise(self, reset_num=False):
@@ -121,12 +121,12 @@ class Revisioning:
         self.save()
 
     def calculate(self):
-        if settings['bot']['majorVersion'] != self.current.major_version:
-            toLog = "Major version is different: " + self.current.major_version + " =/= " + settings['bot']['majorVersion'] + ". Resetting revision number..."
+        if conf.VERSION != self.current.major_version:
+            toLog = "Major version is different: " + self.current.major_version + " =/= " + conf.VERSION + ". Resetting revision number..."
             self.revise(reset_num=True)
             return toLog
-        elif abs(self.current.lines - get_lines(settings['bot']['rootDirectory'])) >= 3:
-            dif = get_lines(settings['bot']['rootDirectory']) - self.current.lines
+        elif abs(self.current.lines - get_lines(conf.rootDir)) >= 3:
+            dif = get_lines(conf.rootDir) - self.current.lines
             if dif > 0:
                 verb = "added"
             else:
@@ -134,8 +134,8 @@ class Revisioning:
             toLog = "Revisioning line difference exceeded: " + "{:,}".format(int(abs(dif))) + " lines " + verb + " to codebase. Incrementing revision number..."
             self.revise()
             return toLog
-        elif self.current.hash != get_hash(settings['bot']['rootDirectory']):
-            toLog = "Revisioning hash is different: ..." + self.current.hash[-8:] + " =/= ..." + get_hash(settings['bot']['rootDirectory'])[-8:] + ". Incrementing revision number..."
+        elif self.current.hash != get_hash(conf.rootDir):
+            toLog = "Revisioning hash is different: ..." + self.current.hash[-8:] + " =/= ..." + get_hash(conf.rootDir)[-8:] + ". Incrementing revision number..."
             self.revise()
             return toLog
         else:
@@ -143,8 +143,8 @@ class Revisioning:
 
     def save(self):
         try:
-            os.makedirs(settings['orm']['botDirectory'])
+            os.makedirs(conf.orm.botDir)
         except FileExistsError:
             pass
-        with open(os.path.join(settings['orm']['botDirectory'], "revisioning.json"), 'w', encoding='utf-8') as file:
+        with open(os.path.join(conf.orm.botDir, "revisioning.json"), 'w', encoding='utf-8') as file:
             json.dump(RevisioningSchema().dump(self), file, sort_keys=True, indent=4, separators=(',', ': '))

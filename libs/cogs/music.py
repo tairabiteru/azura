@@ -1,4 +1,4 @@
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.core.permissions import command
 from libs.core.log import logprint
 from libs.ext.utils import url_is_valid, localnow
@@ -37,7 +37,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         if not member.bot and after.channel is None:
-            if not [m for m in before.channel.members if not m.bot]:
+            members = list([m.id for m in before.channel.members])
+            if self.bot.user.id in members and len(members) == 1:
                 await self.get_player(member.guild).teardown()
 
     @commands.Cog.listener()
@@ -62,10 +63,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         member = Member.obtain(user.id)
 
         if reaction.emoji == BUTTONS['LOWER_VOLUME']:
-            volume = player.volume - member.volume_step
+            volume = player.volume - member.settings.volumeStep
             await player.set_volume(volume)
         if reaction.emoji == BUTTONS['RAISE_VOLUME']:
-            volume = player.volume + member.volume_step
+            volume = player.volume + member.settings.volumeStep
             await player.set_volume(volume)
         if reaction.emoji == BUTTONS['STOP']:
             if player.enqueueing:
@@ -112,12 +113,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         nodes = {
             "MAIN": {
-                "host": settings['wavelink']['host'],
-                "port": settings['wavelink']['port'],
-                "rest_uri": f"http://{settings['wavelink']['host']}:{settings['wavelink']['port']}",
-                "password": settings['wavelink']['password'],
-                "identifier": settings['bot']['name'].upper(),
-                "region": settings['wavelink']['voice_region'],
+                "host": conf.wavelink.host,
+                "port": conf.wavelink.port,
+                "rest_uri": f"http://{conf.wavelink.host}:{conf.wavelink.port}",
+                "password": conf.wavelink.password,
+                "identifier": conf.name.upper(),
+                "region": conf.wavelink.voiceRegion,
             }
         }
 
@@ -155,6 +156,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     async def interface_updater(self, ctx, id):
         player = self.get_player(ctx)
+        if player is None:
+            return
         try:
             while player.queue.current_track.id == id:
                 player = self.get_player(ctx)
@@ -265,7 +268,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         tracks = await self.wavelink.get_tracks(query)
         await player.add_tracks(ctx, tracks)
 
-    @command()
+    @command(aliases=['nq', 'enq'])
     async def enqueue(self, ctx, *, playlist_rq):
         """
         Syntax: `{pre}{command_name} <playlist> [--shuffle]`
@@ -325,6 +328,32 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             await ctx.send(msg)
         else:
             await ctx.send(msg + ".", delete_after=30)
+
+    @command(aliases=['rnq', 'renq'])
+    async def random_enqueue(self, ctx, *, playlist):
+        """
+        Syntax: `{pre}{command_name} <playlist>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Enqueues a playlist to be played in random order. This is just a
+        shortcut for `{pre}enqueue <playlist> --shuffle`.
+
+        __**Arguments**__
+        `<playlist>` - The name of the playlist to be enqueued. Only playlists
+        you own can be enqueued by you. To see your playlists, you can run
+        {pre}show_playlist. To define them, see the commands in the Playlisting
+        cog.
+
+        __**Example Usage**__
+        `{pre}{command_name} Electronic`
+        `{pre}{command_name} Lo-Fi`
+        """
+        enqueue = self.bot.get_command('enqueue')
+        await ctx.invoke(enqueue, playlist_rq=f"{playlist} --shuffle")
 
     @command()
     async def pause(self, ctx):
@@ -671,7 +700,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             member = Member.obtain(ctx.author.id)
             await player.set_volume(member.last_volume)
 
-        admin = Member.obtain(settings['bot']['ownerID'])
+        admin = Member.obtain(conf.ownerID)
         plentries = admin.playlists["Christmas"]
         random.shuffle(plentries)
         enqueued, failures = await player.add_playlist(ctx, self.wavelink, plentries)

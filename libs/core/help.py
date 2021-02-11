@@ -1,4 +1,4 @@
-from libs.core.conf import settings
+from libs.core.conf import conf
 
 from discord.ext import commands
 import discord
@@ -11,7 +11,7 @@ class Help(commands.HelpCommand):
         return 'Use {0}{1} [command] for more information on a command.'.format(self.clean_prefix, self.invoked_with)
 
     def get_command_signature(self, command):
-        return '{0}{1.qualified_name} {1.signature}'.format(settings['bot']['commandPrefix'], command)
+        return '{0}{1.qualified_name} {1.signature}'.format(conf.prefix, command)
 
     async def send_bot_help(self, mapping):
         embed = discord.Embed(title='Bot Commands', color=self.COLOR)
@@ -44,22 +44,22 @@ class Help(commands.HelpCommand):
         await self.get_destination().send(embed=embed)
 
     async def send_group_help(self, group):
-        embed = discord.Embed(title=settings['bot']['commandPrefix'] + group.qualified_name, color=self.COLOR)
+        embed = discord.Embed(title=conf.prefix + group.qualified_name, color=self.COLOR)
 
         if isinstance(group, commands.Group):
             filtered = await self.filter_commands(group.commands, sort=True)
             for command in filtered:
                 doc = command.short_doc or '...'
                 if doc != '...':
-                    doc = doc.format(pre=settings['bot']['commandPrefix'], aliases="`, `".join(list([settings['bot']['commandPrefix'] + alias for alias in command.aliases])))
+                    doc = doc.format(pre=conf.prefix, aliases="`, `".join(list([conf.prefix + alias for alias in command.aliases])))
                 embed.add_field(name=self.get_command_signature(command), value=doc, inline=False)
 
         if isinstance(group, commands.Command):
             command = group
             if command.help:
-                aliases = "`, `".join(list([settings['bot']['commandPrefix'] + alias for alias in command.aliases])) if command.aliases else "None"
+                aliases = "`, `".join(list([conf.prefix + alias for alias in command.aliases])) if command.aliases else "None"
                 desc = command.help
-                desc = desc.format(pre=settings['bot']['commandPrefix'], command_name=command.qualified_name, aliases=aliases, node=command.node(self.context.bot), grant_level=command.grant_level, bot=settings['bot']['name'].capitalize())
+                desc = desc.format(pre=conf.prefix, command_name=command.qualified_name, aliases=aliases, node=command.node(self.context.bot), grant_level=command.grant_level, bot=conf.name.capitalize())
                 embed.description = desc
 
         embed.set_footer(text=self.get_ending_note())

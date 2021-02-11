@@ -1,6 +1,6 @@
 """Contains all global subroutines."""
 
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.orm.uptime import UptimeRecords
 
 import discord
@@ -9,7 +9,7 @@ import itertools
 import traceback
 
 
-hearts = itertools.cycle(settings['bot']['activityCycle'])
+hearts = itertools.cycle(conf.activityCycle)
 
 
 @tasks.loop(seconds=5.0)

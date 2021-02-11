@@ -1,8 +1,9 @@
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.ext.utils import ms_as_ts, url_is_valid, progressBar, localnow
 from libs.ext.player.queue import Queue, Repeat
 from libs.ext.player.track import Track
 from libs.ext.player.errors import AlreadyConnectedToChannel, NoVoiceChannel, NoTracksFound, QueueIsEmpty
+from libs.orm.member import Member
 
 import asyncio
 import random
@@ -33,6 +34,7 @@ class Player(wavelink.Player):
         self.queue = Queue()
         self.enqueueing = False
         self.stop_signal = False
+        self.equalizer_name = "None"
 
 
     async def connect(self, ctx, channel=None):
@@ -64,7 +66,7 @@ class Player(wavelink.Player):
     async def add_playlist(self, ctx, wl, playlist):
         enqueued = []
         failures = []
-        length = settings['wavelink']['compBarLength']
+        length = conf.music.seekBarLength
         progress = progressBar(0, len(playlist), length=length)
         progressMsg = await ctx.send(f"Enqueueing {len(playlist)} song(s)\n`0 {progress} {len(playlist)}`")
         self.enqueueing = True
@@ -88,7 +90,7 @@ class Player(wavelink.Player):
 
             progress = progressBar(i+1, len(playlist), length=length)
             await progressMsg.edit(content=f"Enqueueing {len(playlist)} song(s)\n`{i+1} {progress} {len(playlist)}`")
-            await asyncio.sleep(settings['wavelink']['enqueueingShotDelay'])
+            await asyncio.sleep(conf.music.enqueueingShotDelay)
             if not self.is_playing and not self.queue.empty:
                 await self.start_playback()
 
@@ -118,6 +120,11 @@ class Player(wavelink.Player):
             await self.start_playback()
 
     async def choose_track(self, ctx, tracks):
+        # Return first track if they have promptOnSearch turned off
+        member = Member.obtain(ctx.author.id)
+        if not member.settings.promptOnSearch:
+            return tracks[0]
+
         def r_check(r, u):
             return (r.emoji in OPTSR.keys() and u == ctx.author and r.message.id == msg.id)
 
@@ -191,7 +198,7 @@ class Player(wavelink.Player):
     async def repeat_track(self):
         await self.play(self.queue.current_track)
 
-    def completion_bar(self, length=settings['wavelink']['compBarLength']):
+    def completion_bar(self, length=conf.music.seekBarLength):
         total_time = self.queue.current_track.length
         progress = progressBar(self.position, total_time, length=length)
         time_left = ms_as_ts(total_time - self.position)
@@ -205,4 +212,5 @@ class Player(wavelink.Player):
         embed.add_field(name="Time Left", value=ms_as_ts(self.queue.current_track.length - self.position))
         embed.add_field(name="Volume", value="{}%".format(self.volume))
         embed.add_field(name="Repeat", value=self.current_repeat_mode)
+        embed.add_field(name="EQ", value=self.equalizer_name)
         return embed

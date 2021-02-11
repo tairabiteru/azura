@@ -1,4 +1,4 @@
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.ext.utils import localnow
 
 import os
@@ -48,7 +48,7 @@ class Issue:
         self.responses = kwargs['responses'] if 'responses' in kwargs else []
 
         for tag in self.status_tags:
-            if tag.replace("#", "") not in settings['cogs']['issues']['validTags']:
+            if tag.replace("#", "") not in conf.issues.validTags:
                 raise ValueError("ID: " + str(self.id) + " Tag: '" + tag + "' is not a valid status tag defined in the constants." )
 
     @property
@@ -69,7 +69,7 @@ class Issues:
     @classmethod
     def obtain(cls, id=None, tag=None):
         try:
-            with open(os.path.join(settings['orm']['botDirectory'], "issues.json"), 'r', encoding='utf-8') as file:
+            with open(os.path.join(conf.orm.botDir, "issues.json"), 'r', encoding='utf-8') as file:
                 if id:
                     return IssuesSchema().load(json.load(file)).issues[id]
                 elif tag:
@@ -103,8 +103,8 @@ class Issues:
 
     def save(self):
         try:
-            os.makedirs(settings['orm']['botDirectory'])
+            os.makedirs(conf.orm.rootDir)
         except FileExistsError:
             pass
-        with open(os.path.join(settings['orm']['botDirectory'], "issues.json"), 'w', encoding='utf-8') as file:
+        with open(os.path.join(conf.orm.rootDir, "issues.json"), 'w', encoding='utf-8') as file:
             json.dump(IssuesSchema().dump(self), file, sort_keys=True, indent=4, separators=(',', ': '))

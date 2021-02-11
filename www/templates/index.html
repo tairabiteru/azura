@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<html>
+  <head>
+    <link rel="stylesheet" href="/static/css/index.css">
+    </link> <script src="https://kit.fontawesome.com/db8c487bb7.js" crossorigin="anonymous"></script>
+  </head>
+
+  <div id="nav" class="sidenav">
+    <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+    <a href="/playlists">Playlists</a>
+    <a href="/settings">Settings</a>
+  </div>
+
+  <div id="main">
+    <body>
+      <center>
+        <div class="avatarcard">
+          <img src="{{ bot.user.avatar_url }}">
+          <div class="avatarcard_container">
+            <h1 class="rainbow">{{ bot.user.name }}</h1><br><br>
+            <p>{{ version }}</p>
+
+            <button class="optionsbutton" onclick="openNav()"><i class="fas fa-bars"></i></button><br>
+
+            <small>
+              <a class="notice" href="https://commons.wikimedia.org/wiki/File:Vaporwave-4K-Wallpapers.jpg"> Background by Almudena6cv</a><a class="notice" href="https://creativecommons.org/licenses/by-sa/4.0/"> CC-BY-SA-4.0</a>
+            </small>
+          </div>
+        </div>
+      </center>
+    </body>
+  </div>
+  <script src="/static/js/index.js"></script>
+</html>

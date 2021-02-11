@@ -6,13 +6,14 @@ validate settings, and initialize the bot upon startup.
 """
 
 from libs.core.log import logprint, toilet_banner, toilet_version
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.core.help import Help
 from libs.ext.utils import localnow, portIsOpen
 from libs.dash.core import Dash
 from libs.orm.revisioning import Revisioning
 
 from aiohttp.web import AppRunner, TCPSite
+import discord
 from discord.ext import commands
 import os
 import pickle
@@ -37,13 +38,13 @@ class Azura:
         """Initialize bot instance and set up subroutines."""
         logprint("Initializing, please wait...")
         self.bot = self.initialize()
-        self.settings = settings
+        self.conf = conf
 
         self.subroutines = []
 
     def run(self):
         """After initialzation, run the bot."""
-        self.bot.run(settings['bot']['token'])
+        self.bot.run(conf.token)
 
     def deconstruct(self):
         logprint("Terminating all subroutines...", type="warn")
@@ -60,14 +61,14 @@ class Azura:
                 subroutine.cancel()
 
     def initLavalink(self):
-        command = settings['wavelink']['jvmPath']
-        path = settings['wavelink']['lavalinkPath']
-        if settings['wavelink']['suppressLavalinkOutput']:
+        command = conf.wavelink.jvmPath
+        path = conf.wavelink.lavalinkPath
+        if not conf.wavelink.verbose:
             with open(os.devnull, 'w') as out:
                 self.lavalink_process = subprocess.Popen([command, "-jar", path], stdout=out, stderr=out)
         else:
             self.lavalink_process = subprocess.Popen([command, "-jar", path])
-        while not portIsOpen(settings['wavelink']['host'], settings['wavelink']['port']):
+        while not portIsOpen(conf.wavelink.host, conf.wavelink.port):
             time.sleep(0.1)
 
     def killLavalink(self):
@@ -88,7 +89,7 @@ class Azura:
 
         rev, rev_logoutput = revisionCalc()
 
-        toilet_banner(settings['bot']['name'])
+        toilet_banner(conf.name)
         toilet_version(str(rev.current))
         print()
         rev_logoutput = rev_logoutput.split(":")
@@ -101,10 +102,15 @@ class Azura:
 
         logprint("Initializing bot...")
 
+        intents = discord.Intents.default()
+        intents.members = True
+        intents.presences = True
+
         bot = commands.Bot(
-            command_prefix=commands.when_mentioned_or(settings['bot']['commandPrefix']),
-            description=settings['bot']['description'],
-            help_command=Help()
+            command_prefix=commands.when_mentioned_or(conf.prefix),
+            description=conf.description,
+            help_command=Help(),
+            intents=intents
         )
 
         bot.revision = rev
@@ -141,19 +147,19 @@ class Azura:
                 logprint("Initialization complete.")
 
             # Initialize dashboard.
-            if settings['dash']['enabled']:
+            if conf.dash.enabled:
                 self.dash = Dash(bot)
                 await self.dash.setup()
                 self.dash_runner = AppRunner(self.dash.app)
                 await self.dash_runner.setup()
-                self.site = TCPSite(self.dash_runner, settings['dash']['host'], settings['dash']['port'])
+                self.site = TCPSite(self.dash_runner, conf.dash.host, conf.dash.port)
                 await self.site.start()
 
         @bot.event
         async def on_message(message):
             # Handle processing only when this regex returns a match.
             # This is to prevent things like -_- being intepreted as commands.
-            if re.search("{}[a-z]+".format(settings['bot']['commandPrefix']), message.content):
+            if re.search("{}[a-z]+".format(conf.prefix), message.content):
                 await bot.process_commands(message)
 
         @bot.event

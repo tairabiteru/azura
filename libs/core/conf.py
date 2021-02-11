@@ -11,141 +11,146 @@ import os
 import sys
 import toml
 
-# Base settings needed by the bot to run.
-BASE_SETTINGS = {
-    "title": 'Azura Settings',
-    "bot": {
-        "name": "Azura",
-        "majorVersion": "1.0",
-        "versionTag": "Dazzling Dancer",
-        "commandPrefix": "&",
-        "description": "An advanced Discord music bot.",
-        "manpageLink": "",
-        "timezone": "America/Detroit",
-        "ownerID": 0,
-        "id": 0,
-        "token": "",
-        "secret": ""
+__VERSION__ = "2.5"
+__VERSIONTAG__ = "Dazzling Dancer"
+
+BASE = {
+    'name': 'Azura',
+    'prefix': '-',
+    'description': "An advanced Discord music bot.",
+    'timezone': "America/Detroit",
+    'activityCycle': ['Use -help'],
+    'ownerID': 0,
+    'token': "",
+    'secret': "",
+    'dash': {
+        'enabled': False,
+        'host': 'localhost',
+        'port': 8080,
+        'outfacingURL': ''
+    },
+    'wavelink': {
+        'host': 'localhost',
+        'port': 2333,
+        'password': "",
+        'jvmPath': "java",
+        'voiceRegion': 'us_central',
+        'verbose': True
+    },
+    'music': {
+        'connectionTimeout': 180,
+        'maxHistoryRecords': 1000,
+        'enqueueingShotDelay': 0.2,
+        'seekBarLength': 40,
+    },
+    'issues': {
+        'validTags': ['open', 'closed', 'critical', 'acknowledged']
     }
 }
 
-
-def buildSettings():
-    """
-    Construct settings file.
-
-    We attempt to load the settings file from botroot/settings.toml,
-    but if it's not found, we manually construct a new file.
-    """
-    try:
-        settings = toml.load("settings.toml")
-    except FileNotFoundError:
-        logprint("settings.toml was not found. Generating...")
-        settings = BASE_SETTINGS
-
-        settings['bot']['rootDirectory'] = os.getcwd()
-        settings['bot']['bashPath'] = os.path.join(settings['bot']['rootDirectory'], settings['bot']['name'].lower() + ".sh")
-        settings['bot']['mainPath'] = os.path.join(settings['bot']['rootDirectory'], "main.py")
-        settings['bot']['binDirectory'] = os.path.join(settings['bot']['rootDirectory'], "bin/")
-        settings['bot']['storageDirectory'] = os.path.join(settings['bot']['rootDirectory'], "storage/")
-        settings['bot']['tempDirectory'] = os.path.join(settings['bot']['storageDirectory'], "temp/")
-        settings['bot']['assetDirectory'] = os.path.join(settings['bot']['rootDirectory'], "assets/")
-        settings['bot']['activityCycle'] = ['Use /help']
-
-        dash = {}
-        dash['enabled'] = False
-        dash['host'] = "localhost"
-        dash['port'] = 8080
-        dash['outfacingURL'] = ""
-        dash['serverInvite'] = ""
-        dash['tagsEnabledGuild'] = 0
-        dash['rootDirectory'] = os.path.join(settings['bot']['assetDirectory'], "dash")
-        dash['templateDirectory'] = os.path.join(dash['rootDirectory'], "templates")
-        dash['staticDirectory'] = os.path.join(dash['rootDirectory'], "static")
-        dash['fileUploadDirectory'] = os.path.join(dash['rootDirectory'], "file_uploads")
-        settings['dash'] = dash
-
-        wavelink = {}
-        wavelink['jvmPath'] = "/usr/lib/jvm/java-13-openjdk-amd64/bin/java"
-        wavelink['lavalinkPath'] = os.path.join(settings['bot']['binDirectory'], "Lavalink.jar")
-        wavelink['suppressLavalinkOutput'] = True
-        wavelink['host'] = "localhost"
-        wavelink['port'] = 2333
-        wavelink['password'] = ""
-        wavelink['voice_region'] = us_central
-        wavelink['compBarLength'] = 40
-        settings['wavelink'] = wavelink
-
-        orm = {}
-        orm['databaseDirectory'] = os.path.join(settings['bot']['storageDirectory'], "database/")
-        orm['memberDirectory'] = os.path.join(orm['databaseDirectory'], "members/")
-        orm['serverDirectory'] = os.path.join(orm['databaseDirectory'], "servers/")
-        orm['botDirectory'] = os.path.join(orm['databaseDirectory'], "bot/")
-        orm['maxHistoryRecords'] = 1000
-        settings['orm'] = orm
-
-        cogs = {}
-
-        music = {}
-        music['connectionTimeout'] = 180
-        cogs['music'] = tools
-
-        issues = {}
-        issues['validTags'] = ['open', "closed", 'critical', 'acknowledged']
-        cogs['issues'] = issues
-
-        settings['cogs'] = cogs
-
-        with open("settings.toml", "w") as settingsfile:
-            toml.dump(settings, settingsfile)
-
-    return settings
-
-
-def buildBash(settings):
-    """
-    Build the bash file the bot is executed with.
-
-    We check for the presence of the file first, and if it's not present,
-    we construct it manually.
-    """
-    if not os.path.isfile(settings['bot']['bashPath']):
-        with open(settings['bot']['bashPath'], "w") as bashFile:
-            bashFile.write("#!/bin/bash\n")
-            bashFile.write("cd {root}\n".format(root=settings['bot']['rootDirectory']))
-
-            bashFile.write("LOCKFILE={lf}\n".format(lf=os.path.join(settings['bot']['rootDirectory'], "lock")))
-            bashFile.write("if test -f \"$LOCKFILE\"; then\n    rm $LOCKFILE\nfi\n\n")
-            bashFile.write("while true; do\n    python3 {main}\n".format(main=settings['bot']['mainPath']))
-            bashFile.write("    if test -f $LOCKFILE; then\n        break\n    fi\ndone")
-        os.system("chmod +x {bash}".format(bash=settings['bot']['bashPath']))
-
-
-def validateDirectories(settings, root):
-    """Check to make sure all key directories exist."""
-    for key, value in settings.items():
+def recSetAttr(obj, d):
+    for key, value in d.items():
         if isinstance(value, dict):
-            validateDirectories(value, root)
+            setattr(obj, key, recSetAttr(SubConf(), value))
         else:
-            if "Directory" in key:
-                if not os.path.isdir(value):
-                    if value.startswith(root):
-                        logprint("Directory '" + value + "' does not exist. Creating...")
-                        os.makedirs(value)
-                    else:
-                        logprint("The settings file path " + value + " does not exist", type="warn")
+            setattr(obj, key, value)
+    return obj
 
-
-def validateSettings(settings):
-    """Validate settings. Called during startup."""
-    validateDirectories(settings, settings['bot']['rootDirectory'])
-
-    if not settings['bot']['token']:
-        logprint("Token has not been defined in settings.toml.", type='crit')
+def ensure(path):
+    try:
+        os.makedirs(path)
+        logprint(f"Directory {path} does not exist. It has been created.", type='warn')
+        return path
+    except FileExistsError:
+        return path
+    except PermissionError:
+        logprint(f"Error creating {path}.", type='crit')
         logprint("Fatal, shutting down.", type='crit')
         sys.exit(-1)
 
+class SubConf:
+    def __init__(self):
+        pass
 
-# Construct settings variable so it can be imported, and validate.
-settings = buildSettings()
-validateSettings(settings)
+class Conf:
+    def __init__(self):
+        try:
+            self._conf = toml.load("conf.toml")
+        except FileNotFoundError:
+            logprint("conf.toml was not found, generating...")
+            self._conf = BASE
+            with open("conf.toml", "w") as confFile:
+                toml.dump(self._conf, confFile)
+
+        self._constructPaths()
+
+        self = recSetAttr(self, self._conf)
+
+        if not self.dash.outfacingURL:
+            self.dash.outfacingURL = self.dash.host
+
+        self.buildBash()
+        self.validate()
+
+    def _constructPaths(self):
+        self._conf['VERSION'] = __VERSION__
+        self._conf['VERSIONTAG'] = __VERSIONTAG__
+
+        root = os.getcwd()
+        self._conf['rootDir'] = root
+        self._conf['bashPath'] = os.path.join(root, self._conf['name'].lower() + ".sh")
+        self._conf['mainPath'] = os.path.join(root, "main.py")
+        self._conf['binDir'] = os.path.join(root, "bin/")
+        self._conf['storageDir'] = ensure(os.path.join(root, "storage/"))
+        self._conf['tempDir'] = ensure(os.path.join(self._conf['storageDir'], "temp/"))
+        self._conf['assetDir'] = os.path.join(root, "assets/")
+
+        dashroot = ensure(os.path.join(root, "www/"))
+        self._conf['dash']['rootDir'] = dashroot
+        self._conf['dash']['templateDir'] = os.path.join(dashroot, "templates/")
+        self._conf['dash']['staticDir'] = os.path.join(dashroot, "static/")
+        self._conf['dash']['uploadDir'] = ensure(os.path.join(dashroot, "uploads/"))
+
+        self._conf['wavelink']['lavalinkPath'] = os.path.join(self._conf['binDir'], "Lavalink.jar")
+
+        ormroot = ensure(os.path.join(self._conf['storageDir'], "database/"))
+        # Define here since there are no configurable ORM options
+        self._conf['orm'] = {}
+        self._conf['orm']['rootDir'] = ormroot
+        self._conf['orm']['memberDir'] = ensure(os.path.join(ormroot, "members/"))
+        self._conf['orm']['serverDir'] = ensure(os.path.join(ormroot, "servers/"))
+        self._conf['orm']['botDir'] = ensure(os.path.join(ormroot, "bot/"))
+
+
+    def buildBash(self):
+        """
+        Build the bash file the bot is executed with.
+
+        We check for the presence of the file first, and if it's not present,
+        we construct it manually.
+        """
+        if not os.path.isfile(self.bashPath):
+            with open(self.bashPath, "w") as bashFile:
+                bashFile.write("#!/bin/bash\n")
+                bashFile.write(f"cd {self.rootDir}\n")
+
+                bashFile.write(f"LOCKFILE={os.path.join(self.rootDir, 'lock')}\n")
+                bashFile.write("if test -f \"$LOCKFILE\"; then\n    rm $LOCKFILE\nfi\n\n")
+                bashFile.write(f"while true; do\n    python3 {self.mainPath}\n")
+                bashFile.write("    if test -f $LOCKFILE; then\n        break\n    fi\ndone")
+            os.system(f"chmod +x {self.bashPath}")
+
+    def validate(self):
+        valid = True
+
+        for attr in ['token', 'secret', 'ownerID']:
+            if not getattr(self, attr, None):
+                logprint(f"{attr} is not set in conf.toml.", type='crit')
+                valid = False
+
+        if not valid:
+            logprint("Critical settings are missing. Fatal, shutting down.", type='crit')
+            sys.exit(-1)
+
+# Construct config.
+conf = Conf()

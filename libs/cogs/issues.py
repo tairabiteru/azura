@@ -1,6 +1,6 @@
 """Module containing all issue tracking commands."""
 
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.core.permissions import command
 from libs.ext.pagination import paginate_embed
 from libs.ext.utils import localnow
@@ -42,7 +42,7 @@ class Issues(commands.Cog):
         `{pre}{command_name} This is an issue title | and this is the description.`
         """
         if entry is None:
-            return await ctx.send("You must provide a title and optionally, a description:\n`{pre}issueopen My Title | My description`".format(pre=settings['bot']['commandPrefix']))
+            return await ctx.send("You must provide a title and optionally, a description:\n`{pre}issueopen My Title | My description`".format(pre=conf.prefix))
         entry = entry.split("|")
         if len(entry) == 1:
             entry.append("No description provided.")
@@ -53,7 +53,7 @@ class Issues(commands.Cog):
         issue = issues.open(title, description=desc)
         return await ctx.send("Issue added with ID #{id}.".format(id=issue.id))
 
-    @command(grant_level="explicit")
+    @command(grant_level="explicit", aliases=['il'])
     async def issuelist(self, ctx, tag_or_id="open"):
         """
         Syntax: `{pre}{command_name} [tag_or_id]`
@@ -98,8 +98,8 @@ class Issues(commands.Cog):
                 title = "__All Issues__"
                 matches = list([match for id, match in IssuesMaster.obtain().issues.items()])
             else:
-                if tag.replace("#", "") not in settings['cogs']['issues']['validTags']:
-                    return await ctx.send("Invalid tag specified: `{tag}`. Valid tags are `{tags}`.".format(tag=tag, tags="`, `".join(settings['cogs']['issues']['validTags'])))
+                if tag.replace("#", "") not in conf.issues.validTags:
+                    return await ctx.send("Invalid tag specified: `{tag}`. Valid tags are `{tags}`.".format(tag=tag, tags="`, `".join(conf.issues.validTags)))
                 matches = list([match for id, match in IssuesMaster.obtain(tag=tag).items()])
             if len(matches) == 0:
                 return await ctx.send("No issues with tags matching `#{tag}` were found.".format(tag=tag.replace("#", "")))
@@ -109,7 +109,7 @@ class Issues(commands.Cog):
             pack = list([["#{id} - {tags}".format(id=issue.id, tags=issue.rendered_tags), issue.title] for issue in matches])
             await paginate_embed(ctx, embed, pack, threshold=900)
 
-    @command(grant_level="explicit")
+    @command(grant_level="explicit", aliases=['ir'])
     async def issuerespond(self, ctx, id=None, *, response):
         """
         Syntax: `{pre}{command_name} <id> <response>`
@@ -129,7 +129,7 @@ class Issues(commands.Cog):
         `{pre}{command_name} 69 This is my response.`
         """
         if id is None:
-            return await ctx.send("You must specify the ID:\n{pre}issuerespond <id> <response>".format(pre=settings['bot']['commandPrefix']))
+            return await ctx.send(f"You must specify the ID:\n{conf.prefix}issuerespond <id> <response>")
         if not id.isdigit():
             return await ctx.send("Invalid ID number: `{id}`.".format(id=id))
         try:
@@ -144,7 +144,7 @@ class Issues(commands.Cog):
         issues.save()
         return await ctx.send("Response added for Issue #{id}.".format(id=issue.id))
 
-    @command(grant_level="explicit")
+    @command(grant_level="explicit", aliases=['ic'])
     async def issueclose(self, ctx, id=None):
         """
         Syntax: `{pre}{command_name} <id>`
@@ -163,7 +163,7 @@ class Issues(commands.Cog):
         `{pre}{command_name} 69`
         """
         if id is None:
-            return await ctx.send("You must specify the ID:\n{pre}issueclose <id>".format(pre=settings['bot']['commandPrefix']))
+            return await ctx.send(f"You must specify the ID:\n{conf.prefix}issueclose <id>")
         if not id.isdigit():
             return await ctx.send("Invalid ID number: `{id}`.".format(id=id))
         try:
@@ -179,7 +179,7 @@ class Issues(commands.Cog):
         issues.save()
         return await ctx.send("Issue #{id} closed.".format(id=id))
 
-    @command(grant_level="explicit")
+    @command(grant_level="explicit", aliases=['iro'])
     async def issuereopen(self, ctx, id=None):
         """
         Syntax: `{pre}{command_name} <id>`
@@ -198,7 +198,7 @@ class Issues(commands.Cog):
         `{pre}{command_name} 69`
         """
         if id is None:
-            return await ctx.send("You must specify the ID:\n{pre}issuereopen <id>".format(pre=settings['bot']['commandPrefix']))
+            return await ctx.send(f"You must specify the ID:\n{conf.prefix}issuereopen <id>")
         if not id.isdigit():
             return await ctx.send("Invalid ID number: `{id}`.".format(id=id))
         try:
@@ -215,7 +215,7 @@ class Issues(commands.Cog):
         issues.save()
         return await ctx.send("Issue #{id} reopened.".format(id=id))
 
-    @command(grant_level="explicit")
+    @command(grant_level="explicit", aliases=['it'])
     async def issuetag(self, ctx, command=None, status=None, id=None):
         """
         Syntax: `{pre}{command_name} <command> <#tag> <id>`
@@ -237,14 +237,14 @@ class Issues(commands.Cog):
         `{pre}{command_name} add #critical 69`
         """
         if any([tag is None for tag in [command, status, id]]):
-            return await ctx.send("One or more arguments were not provided. The syntax of the command is as follows:\n`{pre}issuetag <add|remove> <#tag> <issueid>`".format(pre=settings['bot']['commandPrefix']))
+            return await ctx.send(f"One or more arguments were not provided. The syntax of the command is as follows:\n`{conf.prefix}issuetag <add|remove> <#tag> <issueid>`")
         id = int(id)
         edit_tags = []
         status = status.split(",")
         for s in status:
             s = s.replace("#", "") if s.startswith("#") else s
-            if s not in settings['cogs']['issues']['validTags']:
-                return await ctx.send("`" + s + "` is not a valid status tag defined in the constants. Valid tags are:\n" + ", ".join(list(["`{tag}`".format(tag=tag) for tag in settings['cogs']['issues']['validTags']])))
+            if s not in conf.issues.validTags:
+                return await ctx.send("`" + s + "` is not a valid status tag defined in the constants. Valid tags are:\n" + ", ".join(list(["`{tag}`".format(tag=tag) for tag in conf.issues.validTags])))
             edit_tags.append(s)
 
         try:

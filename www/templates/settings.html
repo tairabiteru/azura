@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<html>
+  <head>
+    <link rel="stylesheet" href="/static/css/settings.css"></link>
+    <script src="https://kit.fontawesome.com/db8c487bb7.js" crossorigin="anonymous"></script>
+  </head>
+  <h1 class="rainbow">{{ bot.user.name }}</h1>
+  <body>
+    <form id="settingsForm">
+      {% for setting in member.settings._allSettings %}
+
+        {% if member.settings|attr(setting) is boolean %}
+        <label class="switch">
+          {% if member.settings|attr(setting) %}
+          <input id="{{ setting }}" type="checkbox" onchange="saveSettings()" checked>
+          {% else %}
+          <input id="{{ setting }}" type="checkbox" onchange="saveSettings()">
+          {% endif %}
+          <span class="slider"></span>
+        </label>
+        <label class="namelabel" for="{{ setting }}">{{ setting }}</label><br>
+        <span class="desclabel">{{ member.settings._descriptions.get(setting) }}</span>
+
+        {% elif member.settings|attr(setting) is number %}
+          <input id="{{ setting }}" type="number" oninput="saveSettings()" value="{{ member.settings|attr(setting) }}">
+          <label class="namelabel" for="{{ setting }}">{{ setting }}</label><br>
+          <span class="desclabel">{{ member.settings._descriptions.get(setting) }}</span>
+        {% else %}
+        {% endif %}
+      <br><br>
+      {% endfor %}
+    </form>
+
+    <div class="eq" id="eq">
+      <center>
+      <h2>Equalizer</h2>
+      <select name="eq_name" id="eq_name" onchange="changeEq()">
+        {% for equalizer in member.equalizers %}
+          {% if equalizer.name == member.currentEq.name %}
+            <option value="{{ equalizer.name }}" selected>{{ equalizer.name }}</option>
+          {% else %}
+            <option value="{{ equalizer.name }}">{{ equalizer.name }}</option>
+          {% endif %}
+        {% endfor %}
+      </select>
+      <button type="button" id="new_eq" onclick="showNewEq()">Create Equalizer</button>
+      <button type="button" id="delete_eq" onclick="deleteEq()">Delete Equalizer</button>
+      </center>
+      {% for band, level in member.currentEq.levels.items() %}
+      <div class="vrangeblock">
+        <p>{{ band }}</p>
+        <input class="vrange" id="{{ band }}" type="range" min="-0.5" max="0.5" step="0.01" oninput="changeLevel(this)">
+        <p id="{{ band }}_level">{{ level }}</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div id="newEqOverlay" class="modal">
+      <div class="modal-content">
+        <span class="close" onclick="hideNewEq()">&times;</span>
+        <input type="text" id="newEqName" placeholder="Enter a name..."><br>
+        <input type="text" id="newEqDesc" placeholder="Optionally, enter a description..."><br>
+        <label for="newEqBase">Based on:</label>
+        <select name="newEqBase" id="newEqBase">
+            <option value="Select a base...">Select a base...</option>
+          {% for equalizer in member.equalizers %}
+            <option value="{{ equalizer.name }}">{{ equalizer.name }}</option>
+          {% endfor %}
+        </select><br><br>
+        <button type="button" onclick="createEq()">Save</button>
+        <button type="button" onclick="hideNewEq()">Cancel</button>
+      </div>
+    </div>
+  <br>
+  </body>
+  <script src="/static/js/settings.js"></script>
+</html>

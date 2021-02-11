@@ -12,6 +12,7 @@ Azura is a music bot created for my Discord server. She brings the good beats.
 ```bash
 pip3 install aiohttp aiohttp_jinja2 aiohttp_session beautifulsoup4 colorama cryptography discord.py[voice] jinja2 marshmallow python-pidfile pyfiglet toml wavelink
 ```
+Please note that the `aiohttp` version __MUST__ be `3.6.2`. This is due to an issue with `aiohttp_session` which results in sessions being lost during HTTP redirects if the aiohttp version is higher than that.
 
 ## Installation
 * Install the above dependencies.
@@ -47,7 +48,7 @@ You can run `-help` for a list of all commands, and `-help [command]` to see det
 * Why?
   * Because while I'm perfectly willing to share my code with the world, my server does a lot more than just run music bots all day. Go get your own damn RAM.
 * How do you get the dash to work?
-  * The dash operates on an internal webserver that is disabled by default. When enabled it runs (by default) on `localhost:8080`. All of these settings can be found in `settings.toml`. Once started, the internal webserver can either be accessed directly at the appropriate address in a web browser, or it can be reverse proxied through a proper webserver like Apache 2. I won't explain that process here. 
+  * The dash operates on an internal webserver that is disabled by default. When enabled it runs (by default) on `localhost:8080`. All of these settings can be found in `settings.toml`. Once started, the internal webserver can either be accessed directly at the appropriate address in a web browser, or it can be reverse proxied through a proper webserver like Apache 2. I won't explain that process here.
 * Can this be run on Macrosoft&reg; Winders&trade;?
   * Azura's code basically requires bash scripting and assumes Unix paths. If you want to rewrite her bash file in batch and also change the relevant parts of her code, go ahead. But barring that, no: she requires Linux.
 * What's the meaning behind the name?

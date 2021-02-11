@@ -17,7 +17,7 @@ h1 {
   font-family: 'arial';
   margin: 0px;
   margin-left: 20px;
-  text-shadow: -3px 3px rgba(0, 0, 0, 0.7);
+  text-shadow: -3px 3px rgba(255, 255, 255, 0.5);
 }
 
 body, html {
@@ -26,7 +26,7 @@ body, html {
   font-family: 'Montserrat', sans-serif;
   height: 100%;
   position: relative;
-  background-image: url('img/vaporwave.jpg');
+  background-image: url('/static/img/vaporwave.jpg');
   background-size: cover;
   background-repeat: no-repeat;
   background-attachment: fixed;
@@ -122,6 +122,7 @@ select {
   color: transparent;
   animation: rainbow_animation 8s cubic-bezier(1,-0.6, 0, 1.6) infinite;
   background-size: 400% 100%;
+  padding: 10px 10px 10px 10px;
 }
 
 @keyframes rainbow_animation {

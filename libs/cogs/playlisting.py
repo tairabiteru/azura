@@ -1,4 +1,4 @@
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.core.permissions import command
 from libs.orm.member import Member, PlaylistExists, PlaylistNotFound, EntryExists, EntryNotFound
 from libs.orm.playlist import PlaylistEntry
@@ -350,7 +350,7 @@ class Playlisting(commands.Cog):
         __**Example Usage**__
         `{pre}{command_name}`
         """
-        return await ctx.send(settings['dash']['outfacingURL'])
+        return await ctx.send(conf.dash.outfacingURL)
 
 
 def setup(bot):

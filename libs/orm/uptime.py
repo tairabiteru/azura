@@ -1,4 +1,4 @@
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.ext.utils import localnow
 
 import datetime
@@ -28,7 +28,7 @@ class UptimeRecord:
         uptime_records.all.append(self)
         uptime_records.save()
         try:
-            os.remove(os.path.join(settings['orm']['botDirectory'], "current_uptime_record.json"))
+            os.remove(os.path.join(conf.orm.botDir, "current_uptime_record.json"))
         except FileNotFoundError:
             pass
 
@@ -38,10 +38,10 @@ class UptimeRecord:
 
     def save(self):
         try:
-            os.makedirs(settings['orm']['botDirectory'])
+            os.makedirs(conf.orm.botDir)
         except FileExistsError:
             pass
-        with open(os.path.join(settings['orm']['botDirectory'], "current_uptime_record.json"), 'w', encoding='utf-8') as file:
+        with open(os.path.join(conf.orm.botDir, "current_uptime_record.json"), 'w', encoding='utf-8') as file:
             json.dump(UptimeRecordSchema().dump(self), file, sort_keys=True, indent=4, separators=(',', ': '))
 
 class UptimeRecordsSchema(Schema):
@@ -55,7 +55,7 @@ class UptimeRecords:
     @classmethod
     def obtain(cls):
         try:
-            with open(os.path.join(settings['orm']['botDirectory'], "master_uptime_record.json"), 'r', encoding='utf-8') as file:
+            with open(os.path.join(conf.orm.botDir, "master_uptime_record.json"), 'r', encoding='utf-8') as file:
                 return UptimeRecordsSchema().load(json.load(file))
         except FileNotFoundError:
             return cls()
@@ -74,15 +74,15 @@ class UptimeRecords:
 
     def save(self):
         try:
-            os.makedirs(settings['orm']['botDirectory'])
+            os.makedirs(conf.orm.botDir)
         except FileExistsError:
             pass
-        with open(os.path.join(settings['orm']['botDirectory'], "master_uptime_record.json"), 'w', encoding='utf-8') as file:
+        with open(os.path.join(conf.orm.botDir, "master_uptime_record.json"), 'w', encoding='utf-8') as file:
             json.dump(UptimeRecordsSchema().dump(self), file, sort_keys=True, indent=4, separators=(',', ': '))
 
     @property
     def current_uptime(self):
-        with open(os.path.join(settings['orm']['botDirectory'], "current_uptime_record.json"), 'r', encoding='utf-8') as file:
+        with open(os.path.join(conf.orm.botDir, "current_uptime_record.json"), 'r', encoding='utf-8') as file:
             return UptimeRecordSchema().load(json.load(file))
 
     @property

@@ -2,7 +2,7 @@
 
 from libs.ext.utils import localnow, strfdelta, Validation, human_bytes
 from libs.core.permissions import command, permission_exists
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.core.log import logprint
 from libs.core.azura import revisionCalc
 from libs.orm.revisioning import Revisioning
@@ -88,12 +88,12 @@ class Admin(commands.Cog):
         `{pre}{command_name}`
         """
         warn = "__**!!! WARNING !!!**__\nKilling {name} is **IRREVERSABLE** without direct server console access! \
-         There is __NO WAY__ to restart after a kill command without direct access to the server terminal!".format(name=settings['bot']['name'])
+         There is __NO WAY__ to restart after a kill command without direct access to the server terminal!".format(name=conf.name)
         async with Validation(ctx, warn) as validation:
             if validation:
                 logprint("Kill called by {user}. Proceeding with shutdown...".format(user=ctx.author.name), type="warn")
                 await ctx.send("🔌 Kill signal recieved. Shutting down now...🔌")
-                os.system("touch {file}".format(file=os.path.join(settings['bot']['rootDirectory'], "lock")))
+                os.system("touch {file}".format(file=os.path.join(conf.rootDir, "lock")))
                 await ctx.send("Goodbye!")
                 await self.bot.logout()
                 await self.bot.close()
@@ -228,8 +228,8 @@ class Admin(commands.Cog):
         banner = pyfiglet.Figlet(font="slant")
         embed = discord.Embed(title="Wiki Page",
                               colour=discord.Colour(0x2fff58),
-                              url=settings['bot']['manpageLink'],
-                              description="```" + banner.renderText(settings['bot']['name']) + "```\n" + "**Version ** " + str(revisioning.current))
+                              url=conf.dash.host, # requires revision
+                              description="```" + banner.renderText(conf.name) + "```\n" + "**Version ** " + str(revisioning.current))
         embed.set_thumbnail(url=self.bot.user.avatar_url)
         embed.add_field(name="Cogs", value="{:,}".format(len(self.bot.cogs)))
         embed.add_field(name="Commands", value="{:,}".format(len(self.bot.commands)))
@@ -237,7 +237,6 @@ class Admin(commands.Cog):
         embed.add_field(name="Total size", value="{:,}".format(revisioning.current.size) + " bytes")
         embed.add_field(name="Lines of Code", value="{:,}".format(revisioning.current.lines))
         embed.add_field(name="Characters of Code", value="{:,}".format(revisioning.current.chars))
-        #embed.add_field(name="YTDL Cache Size", value=human_bytes(YTDLSource.cache_size()))
         return await ctx.send(embed=embed)
 
     @command(aliases=['ut'])
@@ -263,34 +262,12 @@ class Admin(commands.Cog):
         dt = uptimes.total_downtime
         utpercent = uptimes.percentage_up
         dtpercent = uptimes.percentage_down
-        embed = discord.Embed(title="__**{bot} Uptime Statistics**__".format(bot=settings['bot']['name']), color=discord.Colour(0xd9e0cf), description="As of " + localnow().strftime("%-m/%-d/%Y %H:%M:%S %Z"))
+        embed = discord.Embed(title=f"__**{conf.name} Uptime Statistics**__", color=discord.Colour(0xd9e0cf), description="As of " + localnow().strftime("%-m/%-d/%Y %H:%M:%S %Z"))
         embed.add_field(name="Total Uptime", value=strfdelta(ut, "{%d} days {%H}:{%M}:{%S}\n") + " (" + str(round(utpercent, 2)) + "%)")
         embed.add_field(name="Total Downtime", value=strfdelta(dt, "{%d} days {%H}:{%M}:{%S}\n") + " (" + str(round(dtpercent, 2)) + "%)")
         embed.add_field(name="Current Session", value=strfdelta(localnow() - uptimes.current_uptime.start_timestamp, "{%d} days {%H}:{%M}:{%S}"))
         embed.add_field(name="Initialization Instances", value="{:,}".format(len(uptimes.all) + 1))
         await ctx.send(embed=embed)
-
-    @command(grant_level="explicit", aliases=['updateytdl'])
-    async def ytdlupdate(self, ctx):
-        """
-        Syntax: `{pre}{command_name}`
-
-        **Aliases:** `{aliases}`
-        **Node:** `{node}`
-        **Grant Level:** `{grant_level}`
-
-        __**Description**__
-        **CURRENTLY BROKEN**
-        Perform an update against YTDL.
-
-        __**Arguments**__
-        This command takes no arguments.
-
-        __**Example Usage**__
-        `{pre}{command_name}`
-        """
-        os.system("python3 -m pip install --upgrade youtube-dl")
-        return await ctx.send("Updated YTDL. Bots utilizing it must be restarted.")
 
     @command(aliases=['listpermissions', 'listperm', 'lsperm', 'lspermissions', 'acl'])
     async def check_permissions(self, ctx, member: discord.Member = None):

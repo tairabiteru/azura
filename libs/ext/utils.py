@@ -1,4 +1,4 @@
-from libs.core.conf import settings
+from libs.core.conf import conf
 
 import asyncio
 from bs4 import BeautifulSoup
@@ -16,7 +16,7 @@ import urllib.request
 import socket
 
 def localnow():
-    return datetime.datetime.now(pytz.timezone(settings['bot']['timezone']))
+    return datetime.datetime.now(pytz.timezone(conf.timezone))
 
 def urlretrieve(url, path):
     request = urllib.request.Request(url, headers={'User-Agent': "Magic Browser"})
@@ -26,7 +26,7 @@ def urlretrieve(url, path):
     return path
 
 def getAvatar(user):
-    path = urlretrieve(user.avatar_url, os.path.join(settings['bot']['tempDirectory'], "avatar.webp"))
+    path = urlretrieve(user.avatar_url, os.path.join(conf.tempDir, "avatar.webp"))
     image = Image.open(path)
     image = image.convert("RGBA")
     return image

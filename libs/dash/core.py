@@ -1,6 +1,6 @@
 """Module that defines the dashboard."""
 
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.dash.routes import routes
 
 from aiohttp import web
@@ -23,10 +23,10 @@ class Dash:
     def __init__(self, bot):
         """Initialize dashboard."""
         self.bot = bot
-        self.host = settings['dash']['host']
-        self.port = settings['dash']['port']
-        self.templateDirectory = settings['dash']['templateDirectory']
-        self.staticDirectory = settings['dash']['staticDirectory']
+        self.host = conf.dash.host
+        self.port = conf.dash.port
+        self.templateDirectory = conf.dash.templateDir
+        self.staticDirectory = conf.dash.staticDir
 
     async def setup(self):
         """Perform setup."""

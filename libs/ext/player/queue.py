@@ -1,4 +1,4 @@
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.ext.player.errors import QueueIsEmpty
 from libs.ext.utils import ms_as_ts
 from libs.orm.songdata import GlobalSongData
@@ -36,8 +36,8 @@ class Queue:
         sde = GlobalSongData.obtain(entry=ct)
         embed = discord.Embed(title=ct.title, colour=discord.Colour(0x14ff), url=f"{ct.uri}")
         _ = embed.set_image(url=ct.thumb) if ct.thumb else None
-        embed.set_author(name=settings['bot']['name'], icon_url=bot.user.avatar_url)
-        embed.set_footer(text=settings['bot']['name'], icon_url=bot.user.avatar_url)
+        embed.set_author(name=conf.name, icon_url=bot.user.avatar_url)
+        embed.set_footer(text=conf.name, icon_url=bot.user.avatar_url)
         embed.add_field(name="Duration", value="{}".format(ms_as_ts(ct.length)))
         live = "Yes" if ct.is_stream else "No"
         embed.add_field(name="Author", value=f"{ct.author}")

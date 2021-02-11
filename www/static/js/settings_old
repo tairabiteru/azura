@@ -1,0 +1,169 @@
+function setLevelValue(element, value) {
+  if (value > 0) {
+    element.innerHTML = "+" + value;
+  } else {
+    element.innerHTML = value;
+  }
+}
+
+function changeLevel(element) {
+  setLevelValue(document.getElementById(element.id + "_level"), element.value);
+}
+
+// Do the AJAX SHUFFLE ( ﾟヮﾟ)
+// (Called to communicate with Azura)
+function communicate(endpoint, data, method="POST", type="application/json") {
+  var xhr = new XMLHttpRequest();
+  return new Promise(function (resolve, reject) {
+    xhr.onreadystatechange = function () {
+      // We should only run the next code if the request is complete.
+      if (xhr.readyState !== 4) {
+        return;
+      }
+
+      // If all good, resolve response.
+      if (xhr.status == 200) {
+        resolve(xhr.responseText);
+      } else {
+        // else, reject it.
+        reject({
+          status: xhr.status,
+          statusText: xhr.statusText
+        });
+      }
+    };
+    xhr.open(method, endpoint);
+    xhr.setRequestHeader("Content-Type", type);
+    xhr.send(data);
+  });
+}
+
+function showNewEq() {
+  document.getElementById("newEqOverlay").style.display = "block";
+}
+
+function hideNewEq() {
+  document.getElementById("newEqOverlay").style.display = "none";
+  document.getElementById("newEqName").value = "";
+}
+
+function createEq() {
+  var select = document.getElementById("eq_name");
+  var newEqName = document.getElementById("newEqName");
+
+  for (var i=0; i<select.length; i++) {
+    if (select.options[i].text.toLowerCase() == newEqName.value.toLowerCase()) {
+      return alert("Error: There is already an equalizer named " + newEqName.value + ".");
+    }
+  }
+
+  var element = document.getElementById("eq");
+  var all = element.getElementsByTagName("input");
+  for (i=0; i<all.length; i++) {
+    if (all[i].type == "range") {
+      all[i].value = 0.0;
+    }
+  }
+
+  var newOption = document.createElement("option");
+  newOption.text = newEqName.value;
+  select.add(newOption);
+  select.value = newOption.text;
+  hideNewEq();
+}
+
+function changeEqState(state) {
+  var element = document.getElementById("eq");
+  var all = element.getElementsByTagName("input");
+  for (i=0; i<all.length; i++) {
+    all[i].disabled = !state;
+  }
+  document.getElementById("eq_name").disabled = !state;
+}
+
+// Called when a playlist is saved.
+function changeEqualizer(element) {
+  var endpoint = "/api/obtain-eq";
+  var data = {'name': element.value};
+  console.log(element.value);
+
+  data = JSON.stringify(data);
+  result = communicate(endpoint, data)
+    .then(function (result) {
+        result = JSON.parse(result);
+        console.log(result)
+        for (const [band, level] of Object.entries(result['levels'])) {
+          setLevelValue(document.getElementById(band + "_level"), level);
+          document.getElementById(band).value = level;
+        }
+    })
+    .catch(function (error) {
+      console.warn("Communication failure:", error);
+    });
+}
+
+
+// Called when a playlist is saved.
+function saveSettings(level_change) {
+  var endpoint = "/api/save-settings";
+  var data = {
+    'settings': {},
+    'equalizer': {}
+  };
+
+  var element = document.getElementById("settingsForm");
+  var all = element.getElementsByTagName("input");
+  for (i=0; i<all.length; i++) {
+    if (all[i].type == "checkbox") {
+      data['settings'][all[i].id] = all[i].checked;
+    } else if (all[i].type == "number") {
+      data['settings'][all[i].id] = all[i].value;
+    } else {
+      console.warn(all[i]);
+    }
+  }
+
+  if (!level_change) {
+    changeEqualizer(document.getElementById("eq_name"));
+  }
+
+  var element = document.getElementById("eq");
+  var all = element.getElementsByTagName("input");
+  var current_eq = document.getElementById("eq_name");
+  data['equalizer']['name'] = current_eq.value;
+  data['equalizer']['description'] = "No description provided.";
+  data['equalizer']['levels'] = {};
+  for (i=0; i<all.length; i++) {
+    if (all[i].type == "range") {
+      data['equalizer']['levels'][all[i].id] = all[i].value;
+    } else {
+      console.warn(all[i]);
+    }
+  }
+
+  data = JSON.stringify(data);
+  console.log(data);
+  result = communicate(endpoint, data)
+    .then(function (result) {
+        console.log(result);
+    })
+    .catch(function (error) {
+      console.warn("Communication failure:", error);
+    });
+
+  if (level_change) { 
+    changeEqualizer(document.getElementById("eq_name"));
+  }
+}
+
+
+// Perform on page load
+document.addEventListener('DOMContentLoaded', function(event) {
+  changeEqualizer(document.getElementById("eq_name"));
+});
+
+// change Eq state when necessary
+var useEqualizerCheckbox = document.getElementById("useEqualizer");
+useEqualizerCheckbox.addEventListener('change', function() {
+  changeEqState(this.checked);
+})

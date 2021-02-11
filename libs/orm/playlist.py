@@ -1,4 +1,4 @@
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.ext.utils import strfdelta
 
 from marshmallow import Schema, fields, pprint, post_load

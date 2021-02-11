@@ -1,4 +1,7 @@
+toastr.options.timeOut = 8000;
+
 var current = null;
+var lastFocused = null;
 
 // Update the Table drag 'n drop'
 function updateDragger() {
@@ -71,6 +74,8 @@ function addRecord() {
   <td><input type="search" value="" id="${current}_${length}_endtime" placeholder="Enter an end time..."></input></td>\
   <td><button type="button" onclick="return deleteEntry(this);" value="${playlist}_${length}"><i class="fas fa-trash-alt"></i></button></td>`
 
+  location.href = `#${current}_${length}_title`;
+
   updateDragger();
 }
 
@@ -88,6 +93,39 @@ function readTable() {
     output.push(rowdata);
   }
   return output;
+}
+
+function sanitizeURL(url) {
+  if (url.includes("youtube.com") && url.startsWith("http")) {
+    var parameters = new URLSearchParams(url.split("?")[1]);
+    var vid = parameters.get('v');
+    return url.split("?")[0] + "?v=" + vid;
+  } else if (url.includes("youtu.be") && url.startsWith("http")) {
+    var vid = url.split("?")[0];
+    vid = vid.split("/")[vid.split("/").length - 1];
+    return "https://www.youtube.com/watch?v=" + vid;
+  }
+  return url;
+}
+
+function sanitizeTable() {
+  var table = document.getElementById(current);
+  var anySanitized = false;
+
+  for (i=1; i<table.rows.length; i++) {
+    row = table.rows[i];
+    var rowdata = [];
+    for (j=1; j<row.cells.length; j++) {
+      cell = row.cells[j];
+      var sanitized = sanitizeURL(cell.firstChild.value);
+      if (sanitized != cell.firstChild.value) {
+        cell.firstChild.value = sanitized;
+        anySanitized = true;
+      }
+    }
+  }
+  console.log(anySanitized);
+  return anySanitized;
 }
 
 // Do the AJAX SHUFFLE ( ﾟヮﾟ)
@@ -131,6 +169,11 @@ function savePlaylist() {
       data['entries'] = []
       data['action'] = "create";
   } else {
+    sanitized = sanitizeTable();
+    if (sanitized) {
+      toastr.warning("Some YouTube URLs have been changed to their shortened versions. This will not affect what is played.");
+    }
+
     data['id'] = current;
     data['name'] = document.getElementById(current + "_name").value;
     data['entries'] = readTable();
@@ -140,12 +183,16 @@ function savePlaylist() {
   data = JSON.stringify(data);
   result = communicate(endpoint, data)
     .then(function (result) {
-      alert(result);
-      if (isNew) location.reload(true);
+      if (result.includes("Error")) {
+        toastr.error(result);
+      } else {
+        toastr.success(result);
+        if (isNew) location.reload(true);
+      }
     })
     .catch(function (error) {
       console.warn("Communication failure:", error);
-      alert("Communication failure. Nothing has been saved.");
+      toastr.error("Communication failure. Nothing has been saved.");
     });
 }
 
@@ -167,7 +214,7 @@ function deletePlaylist() {
     })
     .catch(function (error) {
       console.warn("Communication failure:", error);
-      alert("Communication failure. Nothing has been changed.");
+      toastr.error("Communication failure. Nothing has been changed.");
     });
 }
 
@@ -198,3 +245,18 @@ document.addEventListener('DOMContentLoaded', function(event) {
     change();
   }
 });
+
+// // Detect focus change to sanitize URLs.
+// document.addEventListener('focusin', function() {
+//   if (document.activeElement != lastFocused) {
+//     if (lastFocused != null) {
+//       if (lastFocused.id.endsWith("_generator")) {
+//         if (lastFocused.value.includes("youtube.com") && lastFocused.value.startsWith("http")) {
+//           //lastFocused.value = sanitizeURL(lastFocused.value);
+//           sanitizeTable();
+//         }
+//       }
+//     }
+//     lastFocused = document.activeElement;
+//   }
+// }, true);

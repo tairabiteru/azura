@@ -1,6 +1,6 @@
 """Module to handle Discord OAuth2 in aiohttp."""
 
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.ext.utils import localnow
 
 import aiohttp
@@ -37,8 +37,8 @@ async def handleOAuth(request, scope=""):
         scope = session['scope']
         if localnow() > datetime.datetime.strptime(expiry, "%x %X %z"):
             data = {
-                'client_id': settings['bot']['id'],
-                'client_secret': settings['bot']['secret'],
+                'client_id': request.app.bot.user.id,
+                'client_secret': request.app.bot.user.id,
                 'grant_type': 'refresh_token',
                 'refresh_token': refresh_token,
                 'redirect_uri': str(request.url).replace("http://", "https://"),
@@ -62,7 +62,7 @@ async def handleOAuth(request, scope=""):
             code = request.rel_url.query['code']
         except KeyError:
             query_data = {
-                'client_id': settings['bot']['id'],
+                'client_id': request.app.bot.user.id,
                 'redirect_uri': str(request.url).replace("http://", "https://"),
                 'response_type': 'code',
                 'scope': scope
@@ -70,8 +70,8 @@ async def handleOAuth(request, scope=""):
             query = urllib.parse.urlencode(query_data)
             raise web.HTTPFound("https://discord.com/api/oauth2/authorize?" + query)
         data = {
-            'client_id': settings['bot']['id'],
-            'client_secret': settings['bot']['secret'],
+            'client_id': request.app.bot.user.id,
+            'client_secret': conf.secret,
             'grant_type': 'authorization_code',
             'code': code,
             'redirect_uri': str(request.url).split("?")[0].replace("http://", "https://"),

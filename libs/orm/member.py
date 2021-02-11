@@ -1,4 +1,4 @@
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.ext.utils import localnow
 from libs.ext.utils import render_load_bar
 from libs.orm.playlist import PlaylistEntrySchema
@@ -11,6 +11,7 @@ import math
 import os
 import random
 import discord
+import wavelink
 
 
 class PlaylistExists(Exception):
@@ -29,6 +30,108 @@ class EntryExists(Exception):
     pass
 
 
+class EqualizerSchema(Schema):
+    levels = fields.Dict(keys=fields.Str, values=fields.Float)
+    name = fields.Str()
+    description = fields.Str()
+
+    @post_load
+    def make_obj(self, data, **kwargs):
+        return Equalizer(**data)
+
+class Equalizer:
+    DEFAULTS = {
+        '50 Hz': 0.0,
+        '100 Hz': 0.0,
+        '156 Hz': 0.0,
+        '220 Hz': 0.0,
+        '311 Hz': 0.0,
+        '440 Hz': 0.0,
+        '622 Hz': 0.0,
+        '880 Hz': 0.0,
+        '1.25 KHz': 0.0,
+        '1.75 KHz': 0.0,
+        '2.5 KHz': 0.0,
+        '3.5 KHz': 0.0,
+        '5 KHz': 0.0,
+        '10 KHz': 0.0,
+        '20 KHz': 0.0
+    }
+
+    @classmethod
+    def buildFromEq(cls, eq):
+        desc = {
+            'Boost': 'Emphasizes punchy bass and crisp mid to high tones. Not suitable for tracks with deep, low bass.',
+            'Flat': 'The default equalizer.',
+            'Metal': 'Equalizer for metal and rock. May cause clipping on bassy songs.',
+            'Piano': 'Good for piano tracks, or tracks which emphasize female vocals. Can also be used as a bass cutoff.'
+        }
+        levels = {}
+
+        if eq.name == "Piano":
+            eq.raw.append((14, 0.0))
+
+        for i, band in enumerate(Equalizer.DEFAULTS):
+            levels[band] = eq.raw[i][1]
+        return cls(name=eq.name, description=desc[eq.name], levels=levels)
+
+    def __init__(self, **kwargs):
+        self.name = kwargs['name'] if 'name' in kwargs else 'Custom Settings'
+        self.description = kwargs['description'] if 'description' in kwargs else 'No description provided.'
+        self.levels = kwargs['levels'] if 'levels' in kwargs else Equalizer.DEFAULTS
+
+    @classmethod
+    def buildFromJSON(cls, data):
+        levels = {}
+        for band, level in data['levels'].items():
+            levels[band] = float(level)
+        return cls(name=data['name'], description=data['description'], levels=levels)
+
+    @property
+    def wavelinkEQ(self):
+        bands = []
+        for i, band in enumerate(self.levels):
+            bands.append((i, self.levels[band]))
+        return wavelink.Equalizer(levels=bands)
+
+
+class SettingsSchema(Schema):
+    volumeStep = fields.Int()
+    promptOnSearch = fields.Boolean()
+    useEqualizer = fields.Boolean()
+    eqOverride = fields.Boolean()
+
+    @post_load
+    def make_obj(self, data, **kwargs):
+        return Settings(**data)
+
+class Settings:
+    def __init__(self, **kwargs):
+        self.volumeStep = kwargs['volumeStep'] if 'volumeStep' in kwargs else 5
+        self.promptOnSearch = kwargs['promptOnSearch'] if 'promptOnSearch' in kwargs else True
+        self.useEqualizer = kwargs['useEqualizer'] if 'useEqualizer' in kwargs else True
+        self.eqOverride = kwargs['eqOverride'] if 'eqOverride' in kwargs else False
+
+        self._descriptions = {
+            'volumeStep': "Controls the rate at which volume is changed when using buttons. For example, if volumeStep = 5, then each time the volume up button is pressed, the volume will increase by 5%.",
+            'promptOnSearch': "Controls whether or not you are prompted when you enqueue songs with a search. If enabled you will be asked to select from the top 5 results when a song is enqueued with a search. If disabled, the first result will be automatically selected each time.",
+            'useEqualizer': "Controls whether or not the equalizer is enabled. If enabled, the equalizer set on this page will be used. If disabled, the normal internal equalizer will be used. Equalization can be used to fine tune audio for excellent sound, but it can also mess it up if one does not know what they're doing.",
+            'eqOverride': "Controls whether or not the equalizer setting on this page overrides any equalizers for songs in a playlist. If enabled, the equalizer set here will always be used, regardless of any per-song specifications in a playlist."
+        }
+
+        self._numRangeValues = {
+            'volumeStep': [1, 50]
+        }
+
+    @property
+    def _allSettings(self):
+        settings = []
+        for attr in dir(self):
+            if not attr.startswith("_"):
+                settings.append(attr)
+        return sorted(settings)
+
+
 class MemberSchema(Schema):
     uid = fields.Int(required=True)
     name = fields.Str()
@@ -37,7 +140,9 @@ class MemberSchema(Schema):
     selected = fields.Str()
     history = fields.List(fields.Str)
     last_volume = fields.Int()
-    volume_step = fields.Int()
+    settings = fields.Nested(SettingsSchema)
+    equalizers = fields.List(fields.Nested(EqualizerSchema))
+    current_eq = fields.Str()
 
     @post_load
     def make_obj(self, data, **kwargs):
@@ -47,7 +152,7 @@ class Member:
     @classmethod
     def obtain(cls, uid):
         try:
-            filename = os.path.join(settings['orm']['memberDirectory'], f"{uid}_{cls.__name__}.json")
+            filename = os.path.join(conf.orm.memberDir, f"{uid}_{cls.__name__}.json")
             with open(filename, 'r', encoding='utf-8') as file:
                 out = MemberSchema().load(json.load(file))
                 return out
@@ -62,7 +167,44 @@ class Member:
         self.selected = kwargs['selected'] if 'selected' in kwargs else ""
         self.history = kwargs['history'] if 'history' in kwargs else []
         self.last_volume = kwargs['last_volume'] if 'last_volume' in kwargs else 50
-        self.volume_step = kwargs['volume_step'] if 'volume_step' in kwargs else 5
+        self.settings = kwargs['settings'] if 'settings' in kwargs else Settings()
+
+        if 'equalizers' in kwargs:
+            self.equalizers = kwargs['equalizers']
+        else:
+            self.equalizers = []
+            wavelinkEqs = [wavelink.Equalizer.boost, wavelink.Equalizer.flat, wavelink.Equalizer.metal, wavelink.Equalizer.piano]
+            for eq in wavelinkEqs:
+                eq = Equalizer.buildFromEq(eq())
+                self.equalizers.append(eq)
+
+        self.current_eq = kwargs['current_eq'] if 'current_eq' in kwargs else 'Flat'
+
+    @property
+    def currentEq(self):
+        if not self.settings.useEqualizer:
+            eqname = 'Flat'
+        else:
+            eqname = self.current_eq
+
+        for eq in self.equalizers:
+            if eq.name == eqname:
+                return eq
+
+    def getEq(self, name):
+        for eq in self.equalizers:
+            if eq.name == name:
+                return eq
+        else:
+            return None
+
+    def settingInRange(self, setting, value):
+        values = self.settings._numRangeValues
+        value = int(value)
+        try:
+            return (values[setting][0] <= value <= values[setting][1], values[setting])
+        except KeyError:
+            return (True, "any")
 
     def playlist_exists(self, name):
         for playlist in self.playlists:
@@ -187,7 +329,7 @@ class Member:
         return playlists
 
     def update_history(self, track):
-        while len(self.history) + 1 > settings['orm']['maxHistoryRecords']:
+        while len(self.history) + 1 > conf.music.maxHistoryRecords:
             self.history.pop(0)
         self.history.append(track.title)
         gsd = GlobalSongData.obtain()
@@ -199,9 +341,9 @@ class Member:
 
     def save(self):
         try:
-            os.makedirs(settings['orm']['memberDirectory'])
+            os.makedirs(conf.orm.memberDir)
         except FileExistsError:
             pass
-        filename = os.path.join(settings['orm']['memberDirectory'], f"{self.uid}_{self.__class__.__name__}.json")
+        filename = os.path.join(conf.orm.memberDir, f"{self.uid}_{self.__class__.__name__}.json")
         with open(filename, 'w', encoding='utf-8') as file:
             json.dump(MemberSchema().dump(self), file, indent=4, separators=(',', ': '))

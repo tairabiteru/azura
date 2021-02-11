@@ -1,4 +1,4 @@
-from libs.core.conf import settings
+from libs.core.conf import conf
 from libs.ext.utils import localnow, replaceMentions
 from libs.orm.member import Member
 
@@ -34,10 +34,10 @@ class Server:
 
     def save(self):
         try:
-            os.makedirs(settings['orm']['serverDirectory'])
+            os.makedirs(conf.orm.serverDir)
         except FileExistsError:
             pass
-        with open(os.path.join(settings['orm']['serverDirectory'], str(self.id) + ".json"), 'w', encoding='utf-8') as file:
+        with open(os.path.join(conf.orm.serverDir, str(self.id) + ".json"), 'w', encoding='utf-8') as file:
             json.dump(ServerSchema().dump(self), file, sort_keys=True, indent=4, separators=(',', ': '))
 
 
@@ -46,7 +46,7 @@ class Servers:
     def obtain(cls, bot, id=None):
         if id:
             try:
-                with open(os.path.join(settings['orm']['serverDirectory'], str(id) + ".json"), 'r', encoding='utf-8') as file:
+                with open(os.path.join(conf.orm.serverDir, str(id) + ".json"), 'r', encoding='utf-8') as file:
                     server = ServerSchema().load(json.load(file))
             except FileNotFoundError:
                 server = Server(id)
@@ -54,9 +54,9 @@ class Servers:
             return server
         else:
             servers = []
-            for file in os.listdir(settings['orm']['serverDirectory']):
+            for file in os.listdir(conf.orm.serverDir):
                 if file.endswith(".json"):
-                    with open(os.path.join(settings['orm']['serverDirectory'], file), 'w', encoding='utf-8') as file:
+                    with open(os.path.join(conf.orm.serverDir, file), 'w', encoding='utf-8') as file:
                         server = ServerSchema().load(json.load(file))
                         server.complete(bot)
                         servers.append(server)
