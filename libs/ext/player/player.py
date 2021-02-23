@@ -41,8 +41,10 @@ class Player(wavelink.Player):
         if self.is_connected:
             raise AlreadyConnectedToChannel
 
-        if (channel := getattr(ctx.author.voice, "channel", channel)) is None:
+        if ctx.author.voice.channel is None:
             raise NoVoiceChannel
+        else:
+            channel =  ctx.author.voice.channel
 
         await super().connect(channel.id)
         return channel
@@ -111,7 +113,8 @@ class Player(wavelink.Player):
             self.queue.add(track)
             await ctx.send(f"Added {tracks[0].title} to the queue.")
         else:
-            if (track := await self.choose_track(ctx, tracks)) is not None:
+            track = await self.choose_track(ctx, tracks)
+            if track is not None:
                 track = Track(track, ctx=ctx, requester=ctx.author)
                 self.queue.add(track)
                 await ctx.send(f"Added {track.title} to the queue.")
@@ -187,7 +190,8 @@ class Player(wavelink.Player):
 
     async def advance(self):
         try:
-            if (track := self.queue.get_next_track()) is not None:
+            track = self.queue.get_next_track()
+            if track is not None:
                 if track.end != -1:
                     await self.play(track, start=track.start, end=track.end)
                 else:

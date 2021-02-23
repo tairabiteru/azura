@@ -264,9 +264,11 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         if not url_is_valid(query):
             query = f"ytsearch:{query}"
-
-        tracks = await self.wavelink.get_tracks(query)
-        await player.add_tracks(ctx, tracks)
+        try:
+            tracks = await self.wavelink.get_tracks(query)
+            await player.add_tracks(ctx, tracks)
+        except NoTracksFound:
+            return await ctx.send("I couldn't find a track with that name. Try being less specific, or use a link.")
 
     @command(aliases=['nq', 'enq'])
     async def enqueue(self, ctx, *, playlist_rq):
@@ -574,7 +576,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             value=getattr(player.queue.current_track, "title", "No tracks currently playing."),
             inline=False
         )
-        if upcoming := player.queue.next_tracks:
+        upcoming = player.queue.next_tracks
+        if upcoming:
             embed.add_field(
                 name="Next up",
                 value="\n".join(t.title for t in upcoming[:number]),
@@ -712,7 +715,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             msg += "```"
         else:
             msg += "."
-        print(msg)
         await ctx.send(msg)
 
 

@@ -1,3 +1,4 @@
+
 from libs.core.conf import conf
 from libs.ext.utils import localnow
 
@@ -103,8 +104,8 @@ class Issues:
 
     def save(self):
         try:
-            os.makedirs(conf.orm.rootDir)
+            os.makedirs(conf.orm.botDir)
         except FileExistsError:
             pass
-        with open(os.path.join(conf.orm.rootDir, "issues.json"), 'w', encoding='utf-8') as file:
+        with open(os.path.join(conf.orm.botDir, "issues.json"), 'w', encoding='utf-8') as file:
             json.dump(IssuesSchema().dump(self), file, sort_keys=True, indent=4, separators=(',', ': '))

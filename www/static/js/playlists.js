@@ -186,8 +186,16 @@ function savePlaylist() {
       if (result.includes("Error")) {
         toastr.error(result);
       } else {
-        toastr.success(result);
-        if (isNew) location.reload(true);
+        console.log(result);
+        if (result == "Playlist name updated!") {
+          alert("Playlist name updated! The page will now reload.");
+          location.reload(true);
+        } else if (isNew) {
+          alert("New playlist added. The page will now reload.");
+          location.reload(true);
+        } else {
+          toastr.success(result);
+        }
       }
     })
     .catch(function (error) {

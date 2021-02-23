@@ -2,6 +2,7 @@
 
 from libs.core.conf import conf
 from libs.dash.oauth import handleIdentity
+from libs.dash.utils import cleanGetParams
 from libs.orm.server import Servers
 from libs.orm.revisioning import Revisioning
 from libs.orm.member import Member, Settings, SettingsSchema, Equalizer
@@ -15,11 +16,6 @@ import os
 
 
 routes = web.RouteTableDef()
-
-
-def removeGetParams(request):
-    if 'code' in request.rel_url.query:
-        raise web.HTTPFound(str(request.rel_url).split("?")[0])
 
 
 def get_member(bot, member):
@@ -52,7 +48,7 @@ async def index(request):
 async def settings_page(request):
     session = await handleIdentity(request, scope="identify")
     uid = session['uid']
-    removeGetParams(request)
+    cleanGetParams(request)
 
     member = Member.obtain(uid)
 
@@ -66,7 +62,7 @@ async def playlists(request):
     session = await handleIdentity(request, scope="identify")
     uid = session['uid']
 
-    removeGetParams(request)
+    cleanGetParams(request)
 
     member = Member.obtain(uid)
     return {'playlists': member.playlists}
@@ -118,10 +114,12 @@ async def api_saveplaylist(request):
 
     if data['id'] == data['name'].strip():
         member.playlists[data['id']] = plentries
+        member.save()
     else:
         del member.playlists[data['id']]
         member.playlists[data['name'].strip()] = plentries
-    member.save()
+        member.save()
+        return web.Response(text="Playlist name updated!")
 
     return web.Response(text="Playlist saved successfully!")
 

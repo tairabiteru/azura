@@ -228,7 +228,7 @@ class Admin(commands.Cog):
         banner = pyfiglet.Figlet(font="slant")
         embed = discord.Embed(title="Wiki Page",
                               colour=discord.Colour(0x2fff58),
-                              url=conf.dash.host, # requires revision
+                              url=conf.dash.outfacingURL,
                               description="```" + banner.renderText(conf.name) + "```\n" + "**Version ** " + str(revisioning.current))
         embed.set_thumbnail(url=self.bot.user.avatar_url)
         embed.add_field(name="Cogs", value="{:,}".format(len(self.bot.cogs)))
