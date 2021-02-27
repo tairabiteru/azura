@@ -1,6 +1,6 @@
 """Admin module containing administrative commands."""
 
-from libs.ext.utils import localnow, strfdelta, Validation, human_bytes
+from libs.ext.utils import localnow, strfdelta, Validation, lint
 from libs.core.permissions import command, permission_exists
 from libs.core.conf import conf
 from libs.core.log import logprint
@@ -44,6 +44,20 @@ class Admin(commands.Cog):
         `{pre}{command_name}`
         `{pre}{command_name} admin`
         """
+        msg = await ctx.send("🔍 Performing code inspection...")
+        errors = lint(conf.rootDir)
+        if errors:
+            await msg.edit(content=f"❌ Reinitialization refused due to {len(errors)} error(s) in upstream code.")
+            me = self.bot.get_user(conf.ownerID)
+            msg = "__**Errors Detected in Upstream Code**__\n```"
+            for error in errors:
+                msg += f"[{error['number']}] [{error['filename']}] [Line #{error['lnum']}] {error['text']}\n"
+            if len(msg + "```") > 2000:
+                print(msg + "```")
+                msg = "```Message too long for Discord. Sent to console."
+            return await me.send(msg + "```")
+        await msg.edit(content="✔️ Upstream code OK.")
+
         if module == "bot":
             async with ctx.typing():
                 logprint("Restart called by {user}. Preparing for reinitialization...".format(user=ctx.author.name), type="warn")
@@ -196,13 +210,13 @@ class Admin(commands.Cog):
         __**Example Usage**__
         `{pre}{command_name}`
         """
-        disabled_commands = list([command for command in self.bot.commands if not command.enabled])
+        disabled_commands = list([cmd for cmd in self.bot.commands if not cmd.enabled])
         if len(disabled_commands) == 0:
             return await ctx.send("No commands are currently disabled.")
         else:
             msg = "The following commands are currently disabled:\n"
-            for command in disabled_commands:
-                msg += "`/{command}`, ".format(command=command.qualified_name)
+            for cmd in disabled_commands:
+                msg += "`/{command}`, ".format(command=cmd.qualified_name)
             msg = msg[:-2]
             return await ctx.send(msg)
 

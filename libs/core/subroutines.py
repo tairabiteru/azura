@@ -3,6 +3,7 @@
 from libs.core.conf import conf
 from libs.orm.uptime import UptimeRecords
 
+import concurrent.futures
 import discord
 from discord.ext import tasks
 import itertools

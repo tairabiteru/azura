@@ -6,7 +6,6 @@ from libs.ext.player.errors import AlreadyConnectedToChannel, NoVoiceChannel, No
 from libs.orm.member import Member
 
 import asyncio
-import random
 import discord
 import wavelink
 
@@ -32,8 +31,8 @@ class Player(wavelink.Player):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.queue = Queue()
-        self.enqueueing = False
-        self.stop_signal = False
+        self.enqueueing = asyncio.Event()
+        self.stop_signal = asyncio.Event()
         self.equalizer_name = "None"
 
 
@@ -51,10 +50,16 @@ class Player(wavelink.Player):
 
     async def teardown(self):
         try:
+            await self.halt()
             self.queue.clear()
             await self.destroy()
         except KeyError:
             pass
+
+    async def halt(self):
+        if self.enqueueing.is_set():
+            self.stop_signal.set()
+        await self.stop()
 
     @property
     def current_repeat_mode(self):
@@ -71,10 +76,11 @@ class Player(wavelink.Player):
         length = conf.music.seekBarLength
         progress = progressBar(0, len(playlist), length=length)
         progressMsg = await ctx.send(f"Enqueueing {len(playlist)} song(s)\n`0 {progress} {len(playlist)}`")
-        self.enqueueing = True
+        self.enqueueing.set()
         for i, entry in enumerate(playlist):
-            if self.stop_signal:
+            if self.stop_signal.is_set():
                 self.queue.clear()
+                await ctx.send("Enqueueing halted.")
                 break
 
             if not url_is_valid(entry.generator):
@@ -98,8 +104,8 @@ class Player(wavelink.Player):
 
         # Should be replaced with some kind of exception.
         # Ex: raise EnqueueingStopped
-        self.enqueueing = False
-        self.stop_signal = False
+        self.enqueueing.clear()
+        self.stop_signal.clear()
         return (enqueued, failures)
 
     async def add_tracks(self, ctx, tracks):

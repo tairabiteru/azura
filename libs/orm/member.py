@@ -1,15 +1,10 @@
 from libs.core.conf import conf
-from libs.ext.utils import localnow
-from libs.ext.utils import render_load_bar
 from libs.orm.playlist import PlaylistEntrySchema
 from libs.orm.songdata import GlobalSongData
 
-import datetime
 import json
 from marshmallow import Schema, fields, post_load
-import math
 import os
-import random
 import discord
 import wavelink
 
@@ -347,3 +342,13 @@ class Member:
         filename = os.path.join(conf.orm.memberDir, f"{self.uid}_{self.__class__.__name__}.json")
         with open(filename, 'w', encoding='utf-8') as file:
             json.dump(MemberSchema().dump(self), file, indent=4, separators=(',', ': '))
+
+
+class Playlist:
+    def __init__(self):
+        pass
+
+    @classmethod
+    async def convert(cls, ctx, argument):
+        member = Member.obtain(ctx.author.id)
+        return member.get_playlist(argument)[1]

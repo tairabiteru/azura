@@ -1,4 +1,3 @@
-from libs.core.log import logprint
 from libs.core.conf import conf
 from libs.ext.utils import localnow
 
@@ -103,7 +102,7 @@ class Revisioning:
         try:
             with open(os.path.join(conf.orm.botDir, "revisioning.json"), 'r', encoding='utf-8') as file:
                 return RevisioningSchema().load(json.load(file))
-        except (FileNotFoundError, json.decoder.JSONDecodeError) as e:
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
             return cls()
 
     def __init__(self, **kwargs):

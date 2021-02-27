@@ -11,7 +11,7 @@ import os
 import sys
 import toml
 
-__VERSION__ = "2.5"
+__VERSION__ = "2.6"
 __VERSIONTAG__ = "Dazzling Dancer"
 
 BASE = {

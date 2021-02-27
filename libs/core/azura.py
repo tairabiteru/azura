@@ -8,7 +8,7 @@ validate settings, and initialize the bot upon startup.
 from libs.core.log import logprint, toilet_banner, toilet_version
 from libs.core.conf import conf
 from libs.core.help import Help
-from libs.ext.utils import localnow, portIsOpen
+from libs.ext.utils import portIsOpen
 from libs.dash.core import Dash
 from libs.orm.revisioning import Revisioning
 

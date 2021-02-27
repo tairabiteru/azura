@@ -6,7 +6,6 @@ async def paginate_embed(ctx, embed, contents, threshold=1900):
     edescription = embed.description
     ecolor = embed.color
     efields = embed.fields
-    total_pages = 0
     current_chars = len(etitle) + len(edescription)
     current_page = []
     pages = []

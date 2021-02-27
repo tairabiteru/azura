@@ -1,9 +1,9 @@
 from libs.core.conf import conf
 
-from discord.ext import commands
+from discord.ext import commands as cmds
 import discord
 
-class Help(commands.HelpCommand):
+class Help(cmds.HelpCommand):
 
     COLOR = discord.Color.blurple()
 
@@ -46,7 +46,7 @@ class Help(commands.HelpCommand):
     async def send_group_help(self, group):
         embed = discord.Embed(title=conf.prefix + group.qualified_name, color=self.COLOR)
 
-        if isinstance(group, commands.Group):
+        if isinstance(group, cmds.Group):
             filtered = await self.filter_commands(group.commands, sort=True)
             for command in filtered:
                 doc = command.short_doc or '...'
@@ -54,7 +54,7 @@ class Help(commands.HelpCommand):
                     doc = doc.format(pre=conf.prefix, aliases="`, `".join(list([conf.prefix + alias for alias in command.aliases])))
                 embed.add_field(name=self.get_command_signature(command), value=doc, inline=False)
 
-        if isinstance(group, commands.Command):
+        if isinstance(group, cmds.Command):
             command = group
             if command.help:
                 aliases = "`, `".join(list([conf.prefix + alias for alias in command.aliases])) if command.aliases else "None"

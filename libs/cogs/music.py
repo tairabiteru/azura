@@ -1,3 +1,5 @@
+"""Defines music cog. Everything related to playing music."""
+
 from libs.core.conf import conf
 from libs.core.permissions import command
 from libs.core.log import logprint
@@ -6,7 +8,8 @@ from libs.orm.member import Member
 
 from libs.ext.player.player import Player
 from libs.ext.player.queue import Repeat
-from libs.ext.player.errors import QueueIsEmpty, AlreadyConnectedToChannel, NoVoiceChannel
+from libs.ext.player.errors import QueueIsEmpty, AlreadyConnectedToChannel, \
+ NoVoiceChannel, NoTracksFound
 
 import asyncio
 import wavelink
@@ -69,10 +72,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             volume = player.volume + member.settings.volumeStep
             await player.set_volume(volume)
         if reaction.emoji == BUTTONS['STOP']:
-            if player.enqueueing:
-                player.stop_signal = True
+            await player.halt()
             player.queue.clear()
-            await player.stop()
             await player.plyrmsg.channel.send(f"Playback stopped by {user.name}.")
         if reaction.emoji == BUTTONS['DISCONNECT']:
             await player.teardown()
@@ -127,11 +128,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     @wavelink.WavelinkMixin.listener("on_track_start")
     async def on_track_start(self, node, payload):
-        player, track = (payload.player, payload.player.queue.current_track)
-        member = Member.obtain(track.requester.id)
-        member.update_history(track)
-        messages = await track.ctx.channel.history(limit=2).flatten()
-        messages = list([message.id for message in messages])
+        try:
+            player, track = (payload.player, payload.player.queue.current_track)
+            member = Member.obtain(track.requester.id)
+            member.update_history(track)
+            messages = await track.ctx.channel.history(limit=2).flatten()
+            messages = list([message.id for message in messages])
+        except QueueIsEmpty:
+            return
 
         try:
             if player.infomsg.id in messages and player.plyrmsg.id in messages:
@@ -141,7 +145,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 await player.infomsg.delete()
                 await player.plyrmsg.delete()
                 raise AttributeError
-        except (AttributeError, discord.errors.NotFound) as e:
+        except (AttributeError, discord.errors.NotFound):
             player.infomsg = await track.ctx.send(embed=player.queue.info_embed(self.bot))
             player.plyrmsg = await track.ctx.send(embed=player.player_embed())
             for button in list(BUTTONS.values()):
@@ -301,12 +305,19 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             shuffle = True
             playlist_rq = playlist_rq.replace("--shuffle", "").strip()
 
-        playlist = member.playlist_exists(playlist_rq)
-        if not playlist:
-            return await ctx.send(f"No playlist named `{playlist_rq}` exists.")
+        plentries = []
+        member = Member.obtain(ctx.author.id)
+        for playlist in playlist_rq.split("|"):
+            playlist = member.playlist_exists(playlist.strip())
+            if not playlist:
+                return await ctx.send(f"No playlist named `{playlist}` exists.")
 
-        if len(member.playlists[playlist]) == 0:
-            return await ctx.send(f"There are no entries in `{playlist}`.")
+            if len(member.playlists[playlist]) == 0:
+                return await ctx.send(f"There are no entries in `{playlist}`.")
+            plentries += member.playlists[playlist]
+
+        if shuffle:
+            random.shuffle(plentries)
 
         player = self.get_player(ctx)
 
@@ -314,12 +325,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             channel = await player.connect(ctx)
             if not channel:
                 return
-            member = Member.obtain(ctx.author.id)
             await player.set_volume(member.last_volume)
 
-        plentries = member.playlists[playlist]
-        if shuffle:
-            random.shuffle(plentries)
         enqueued, failures = await player.add_playlist(ctx, self.wavelink, plentries)
         msg = f"Enqueued {len(enqueued)} song(s)"
         if failures:
@@ -427,8 +434,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         """
         player = self.get_player(ctx)
         player.queue.clear()
-        if player.enqueueing:
-            player.stop_signal = True
+        if player.enqueueing.is_set():
+            player.stop_signal.set()
         await player.stop()
         await ctx.send("Playback terminated, queue emptied.")
 

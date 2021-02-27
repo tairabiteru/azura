@@ -1,18 +1,14 @@
 """Main routing file for the dashboard."""
 
-from libs.core.conf import conf
 from libs.dash.oauth import handleIdentity
 from libs.dash.utils import cleanGetParams
-from libs.orm.server import Servers
 from libs.orm.revisioning import Revisioning
-from libs.orm.member import Member, Settings, SettingsSchema, Equalizer
+from libs.orm.member import Member, Equalizer
 from libs.orm.playlist import PlaylistEntry
 from libs.ext.utils import serializeTimestamp
 
 from aiohttp import web
 from aiohttp_jinja2 import template
-import discord
-import os
 
 
 routes = web.RouteTableDef()

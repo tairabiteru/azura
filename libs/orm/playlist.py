@@ -1,8 +1,6 @@
-from libs.core.conf import conf
 from libs.ext.utils import strfdelta
 
-from marshmallow import Schema, fields, pprint, post_load
-import time
+from marshmallow import Schema, fields, post_load
 import datetime
 import discord
 

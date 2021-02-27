@@ -4,7 +4,7 @@ from libs.ext.player.track import Track
 import json
 import os
 
-from marshmallow import Schema, fields, pprint, post_load
+from marshmallow import Schema, fields, post_load
 
 class SongDataEntrySchema(Schema):
     vid = fields.Str(allow_none=True)

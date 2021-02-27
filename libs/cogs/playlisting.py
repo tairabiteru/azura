@@ -2,7 +2,6 @@ from libs.core.conf import conf
 from libs.core.permissions import command
 from libs.orm.member import Member, PlaylistExists, PlaylistNotFound, EntryExists, EntryNotFound
 from libs.orm.playlist import PlaylistEntry
-from libs.orm.songdata import GlobalSongData
 from libs.ext.utils import SimpleValidation
 
 import discord
@@ -299,7 +298,7 @@ class Playlisting(commands.Cog):
         if not member.selected:
             return await ctx.send("You don't have a playlist selected.")
         try:
-            entry = member.delete_playlist_entry(member.selected, title)
+            member.delete_playlist_entry(member.selected, title)
             return await ctx.send(f"Removed `{title}` from `{member.selected}`.")
         except EntryNotFound:
             await ctx.send(f"No entry identified by `{title}` exists.")
