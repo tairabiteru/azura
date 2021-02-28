@@ -163,6 +163,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if player is None:
             return
         try:
+            if player.queue.current_track is None:
+                return
             while player.queue.current_track.id == id:
                 player = self.get_player(ctx)
                 try:

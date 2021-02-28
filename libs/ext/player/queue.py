@@ -32,8 +32,6 @@ class Queue:
         if self.position <= len(self._queue) - 1:
             return self._queue[self.position]
 
-        print("Queue is: ", self._queue)
-
     def info_embed(self, bot):
         ct = self.current_track
         sde = GlobalSongData.obtain(entry=ct)
