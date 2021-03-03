@@ -27,18 +27,34 @@ from libs.orm.member import Member
 
 from discord.ext import commands
 
+
 class Command(commands.Command):
+    """
+    Override discord.ext.commands.Command.
+
+    We do this because it allows for the permissions system to be injected
+    into the commands themselves. This is ULTRA useful, not only for checking
+    permissions, but also for creating help documentation dynamically.
+    """
+
     def __init__(self, func, **kwargs):
+        """Initialize command."""
         super().__init__(func, **kwargs)
         self.grant_level = kwargs['grant_level'] if 'grant_level' in kwargs else 'implicit'
         self.add_check(self.permissions_check)
 
     def node(self, bot):
+        """
+        Obtain the permissions node of the command.
+
+        The permissions node of any command is in the format 'cog.command'.
+        """
         for command in bot.commands:
             if command.qualified_name == self.qualified_name:
                 return command.cog.qualified_name.lower() + "." + self.qualified_name.lower()
 
     def permissions_check(self, ctx):
+        """Check permissions for the command."""
         member = Member.obtain(ctx.author.id)
         cog, command = self.node(ctx.bot).split(".")
 
@@ -62,7 +78,15 @@ class Command(commands.Command):
         else:
             return True
 
+
 def command(name=None, cls=None, **attrs):
+    """
+    Define the decorator for libs.permissions.Command.
+
+    This is the equivalent of @commands.command() and it functions
+    pretty much identically, except it can take some special arguments
+    specific to the above class like the grant_level.
+    """
     if cls is None:
         cls = Command
 
@@ -72,7 +96,9 @@ def command(name=None, cls=None, **attrs):
         return cls(func, name=name, **attrs)
     return decorator
 
+
 def permission_exists(bot, node):
+    """Check for the existence of a particular node."""
     if node == "bot.*":
         return True
 

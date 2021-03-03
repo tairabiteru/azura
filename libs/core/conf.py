@@ -11,8 +11,8 @@ import os
 import sys
 import toml
 
-__VERSION__ = "2.6"
-__VERSIONTAG__ = "Dazzling Dancer"
+__VERSION__ = "3.0"
+__VERSIONTAG__ = "Sapphirine Songstress"
 
 BASE = {
     'name': 'Azura',
@@ -48,7 +48,14 @@ BASE = {
     }
 }
 
+
 def recSetAttr(obj, d):
+    """
+    Set attributes recursively.
+
+    This is an admittedly somewhat dirty method used to get the
+    conf.to_have.attributes like that.
+    """
     for key, value in d.items():
         if isinstance(value, dict):
             setattr(obj, key, recSetAttr(SubConf(), value))
@@ -56,7 +63,14 @@ def recSetAttr(obj, d):
             setattr(obj, key, value)
     return obj
 
+
 def ensure(path):
+    """
+    Ensure a directory exists during initialization.
+
+    The directory is created if it doesn't exist, unless it can't, in which
+    case, the bot crashes.
+    """
     try:
         os.makedirs(path)
         logprint(f"Directory {path} does not exist. It has been created.", type='warn')
@@ -68,12 +82,36 @@ def ensure(path):
         logprint("Fatal, shutting down.", type='crit')
         sys.exit(-1)
 
+
 class SubConf:
+    """Container class to hold subattributes of the config class."""
+
     def __init__(self):
+        """Init nothing lol."""
         pass
 
+
 class Conf:
+    """
+    Core configuration container.
+
+    This class both initializes and contains all configuration settings used
+    by the bot. It also initializes some internal settings which are not
+    exposed in the config file itself. These are used in the code as easy
+    shortcuts to particular paths.
+    """
+
     def __init__(self):
+        """
+        Initialize config.
+
+        We load in conf.toml from the bot's root dir. If it doesn't exist, we
+        create a new one from the base settings. Either way, we continue
+        on, using the above functions to recursively set attributes to
+        values and subdivisions in the toml file.
+        The bash file and validation are also performed here prior to
+        initialization of the bot itself.
+        """
         try:
             self._conf = toml.load("conf.toml")
         except FileNotFoundError:
@@ -93,6 +131,13 @@ class Conf:
         self.validate()
 
     def _constructPaths(self):
+        """
+        Initialize internal paths.
+
+        The paths created here are internal, and not exposed in conf.toml.
+        They are based on the location of the bot's execution. We also define
+        some other internal settings in here too, unrelated to paths.
+        """
         self._conf['VERSION'] = __VERSION__
         self._conf['VERSIONTAG'] = __VERSIONTAG__
 
@@ -120,7 +165,7 @@ class Conf:
         self._conf['orm']['memberDir'] = ensure(os.path.join(ormroot, "members/"))
         self._conf['orm']['serverDir'] = ensure(os.path.join(ormroot, "servers/"))
         self._conf['orm']['botDir'] = ensure(os.path.join(ormroot, "bot/"))
-
+        self._conf['orm']['faqDir'] = ensure(os.path.join(self._conf['orm']['botDir'], "faq/"))
 
     def buildBash(self):
         """
@@ -141,6 +186,14 @@ class Conf:
             os.system(f"chmod +x {self.bashPath}")
 
     def validate(self):
+        """
+        Validate the presence of particular config options.
+
+        In particular, we need to ensure the token, secret, and ownerID are
+        all present in the config file, at least. These are the bare minimum
+        settings required for the bot to run, and if they're not present on
+        initialization, the bot will crash.
+        """
         valid = True
 
         for attr in ['token', 'secret', 'ownerID']:
@@ -151,6 +204,7 @@ class Conf:
         if not valid:
             logprint("Critical settings are missing. Fatal, shutting down.", type='crit')
             sys.exit(-1)
+
 
 # Construct config.
 conf = Conf()

@@ -1,12 +1,12 @@
 from libs.core.conf import conf
-from libs.ext.utils import ms_as_ts, url_is_valid, progressBar, localnow
-from libs.ext.player.queue import Queue, Repeat
-from libs.ext.player.track import Track
-from libs.ext.player.errors import AlreadyConnectedToChannel, NoVoiceChannel, NoTracksFound, QueueIsEmpty
+from libs.ext.utils import ms_as_ts, progressBar, localnow
+from libs.ext.player.queue import Queue, Repeat, EnqueueJob
+from libs.ext.player.errors import AlreadyConnectedToChannel, NoVoiceChannel, QueueIsEmpty
 from libs.orm.member import Member
 
 import asyncio
 import discord
+import queue
 import wavelink
 
 
@@ -32,8 +32,16 @@ class Player(wavelink.Player):
         super().__init__(*args, **kwargs)
         self.queue = Queue()
         self.enqueueing = asyncio.Event()
-        self.stop_signal = asyncio.Event()
+        self.adv_all_clear = asyncio.Event()
+        self.enq_all_clear = asyncio.Event()
         self.equalizer_name = "None"
+        self.enqueueJobs = queue.Queue()
+        self.current_job = None
+        self.enqmsg = None
+
+        self.adv_all_clear.set()
+        self.enq_all_clear.set()
+
 
 
     async def connect(self, ctx, channel=None):
@@ -52,13 +60,15 @@ class Player(wavelink.Player):
         try:
             await self.halt()
             self.queue.clear()
+            self.enqueueJobs = queue.Queue()
             await self.destroy()
         except KeyError:
             pass
 
     async def halt(self):
-        if self.enqueueing.is_set():
-            self.stop_signal.set()
+        if self.current_job:
+            self.current_job.cancel.set()
+        self.enqueueJobs = queue.Queue()
         await self.stop()
 
     @property
@@ -70,63 +80,25 @@ class Player(wavelink.Player):
         elif self.queue.repeat_mode == Repeat.ALL:
             return "Current Queue"
 
-    async def add_playlist(self, ctx, wl, playlist):
-        enqueued = []
-        failures = []
-        length = conf.music.seekBarLength
-        progress = progressBar(0, len(playlist), length=length)
-        progressMsg = await ctx.send(f"Enqueueing {len(playlist)} song(s)\n`0 {progress} {len(playlist)}`")
-        self.enqueueing.set()
-        for i, entry in enumerate(playlist):
-            if self.stop_signal.is_set():
-                self.queue.clear()
-                await ctx.send("Enqueueing halted.")
+    async def add_enqueue_job(self, ctx, wl, name, playlist, mode='FIFO'):
+        job = EnqueueJob(ctx, wl, name, playlist, mode=mode)
+        self.enqueueJobs.put(job)
+        if not self.enqueueing.is_set():
+            await self.enqueue_task()
+
+    async def enqueue_task(self):
+        while True:  # Should be replaced with bot.is_closed() or something
+            if self.enqueueJobs.empty():
                 break
+            if not self.enqueueing.is_set():
+                self.enqueueing.set()
 
-            if not url_is_valid(entry.generator):
-                query = f"ytsearch:{entry.generator}"
-            else:
-                query = entry.generator
-            tracks = await wl.get_tracks(query)
-            if not tracks:
-                failures.append(entry)
-                continue
+            job = self.enqueueJobs.get()
+            self.current_job = job
+            await job.execute(self)
 
-            track = Track(tracks[0], ctx=ctx, requester=ctx.author, start=entry.start, end=entry.end)
-            self.queue.add(track)
-            enqueued.append(track)
-
-            progress = progressBar(i+1, len(playlist), length=length)
-            await progressMsg.edit(content=f"Enqueueing {len(playlist)} song(s)\n`{i+1} {progress} {len(playlist)}`")
-            await asyncio.sleep(conf.music.enqueueingShotDelay)
-            if not self.is_playing and not self.queue.empty:
-                await self.start_playback()
-
-        # Should be replaced with some kind of exception.
-        # Ex: raise EnqueueingStopped
+        self.current_job = None
         self.enqueueing.clear()
-        self.stop_signal.clear()
-        return (enqueued, failures)
-
-    async def add_tracks(self, ctx, tracks):
-        if not tracks:
-            raise NoTracksFound
-
-        if isinstance(tracks, wavelink.TrackPlaylist):
-            self.queue.add(*tracks.tracks)
-        elif len(tracks) == 1:
-            track = Track(tracks[0], ctx=ctx, requester=ctx.author)
-            self.queue.add(track)
-            await ctx.send(f"Added {tracks[0].title} to the queue.")
-        else:
-            track = await self.choose_track(ctx, tracks)
-            if track is not None:
-                track = Track(track, ctx=ctx, requester=ctx.author)
-                self.queue.add(track)
-                await ctx.send(f"Added {track.title} to the queue.")
-
-        if not self.is_playing and not self.queue.empty:
-            await self.start_playback()
 
     async def choose_track(self, ctx, tracks):
         # Return first track if they have promptOnSearch turned off
@@ -195,6 +167,9 @@ class Player(wavelink.Player):
             await self.play(track, start=track.start)
 
     async def advance(self):
+        self.enq_all_clear.clear()
+        await self.adv_all_clear.wait()
+
         try:
             track = self.queue.get_next_track()
             if track is not None:
@@ -204,6 +179,8 @@ class Player(wavelink.Player):
                     await self.play(track, start=track.start)
         except QueueIsEmpty:
             pass
+
+        self.enq_all_clear.set()
 
     async def repeat_track(self):
         await self.play(self.queue.current_track)
@@ -217,9 +194,13 @@ class Player(wavelink.Player):
 
     def player_embed(self):
         status = "Paused" if self.is_paused else "Now Playing"
-        embed = discord.Embed(title=f"Playback Status - {status}", colour=discord.Colour(0x14ff), description="`{}`".format(self.completion_bar()))
-        embed.add_field(name="Time Elapsed", value=ms_as_ts(self.position))
-        embed.add_field(name="Time Left", value=ms_as_ts(self.queue.current_track.length - self.position))
+        embed = discord.Embed(title=f"Playback Status - {status}", colour=discord.Colour(0x14ff), description=f"`{self.completion_bar()}`")
+        embed.add_field(name="Song Time Elapsed", value=ms_as_ts(self.position))
+        embed.add_field(name="Song Time Left", value=ms_as_ts(self.queue.current_track.length - self.position))
+        embed.add_field(name="Songs Played", value=len(self.queue.past_tracks))
+        embed.add_field(name="Queue Time Elapsed", value=ms_as_ts(sum([track.length for track in self.queue.past_tracks]) + self.position))
+        embed.add_field(name="Queue Time Left", value=ms_as_ts(sum([track.length for track in self.queue.next_tracks]) + (self.queue.current_track.length - self.position)))
+        embed.add_field(name="Songs in Queue", value=len(self.queue.next_tracks))
         embed.add_field(name="Volume", value="{}%".format(self.volume))
         embed.add_field(name="Repeat", value=self.current_repeat_mode)
         embed.add_field(name="EQ", value=self.equalizer_name)

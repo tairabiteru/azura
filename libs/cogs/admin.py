@@ -8,6 +8,7 @@ from libs.core.azura import revisionCalc
 from libs.orm.revisioning import Revisioning
 from libs.orm.uptime import UptimeRecords
 from libs.orm.member import Member
+from libs.orm.faq import FAQ
 
 import discord
 from discord.ext import commands
@@ -383,6 +384,40 @@ class Admin(commands.Cog):
         member_o.acl[node] = value
         member_o.save()
         return await ctx.send("`{node}` set to `{value}` for {user}.".format(node=node, value=value, user=member.name))
+
+    @command()
+    async def faq(self, ctx, topic_name=None):
+        """
+        Syntax: `{pre}{command_name} [topic]`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Displays information about various frequently asked questions.
+
+        __**Arguments**__
+        `[topic]` - The topic you want to view. If none is specified, all
+        available topics will be listed.
+
+        __**Example Usage**__
+        `{pre}{command_name}`
+        `{pre}{command_name} enqueueing`
+        """
+        if topic_name is None:
+            topics = FAQ.topics()
+            if not topics:
+                topics = ["No topics available."]
+            embed = discord.Embed(title="**__F.A.Q. Topics__**", description=", ".join([f"`{t}`" for t in topics]))
+        else:
+            topic = FAQ.obtain(topic_name)
+            if topic is None:
+                return await ctx.send(f"No topic named `{topic_name}` exists. Try running `{conf.prefix}faq` to see all available topics.")
+            embed = discord.Embed(title=f"**__{topic.question}__**", description=topic.content.format(pre=conf.prefix))
+            if topic.image:
+                embed.set_image(url=topic.image)
+        return await ctx.send(embed=embed)
 
 
 def setup(bot):

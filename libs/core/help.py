@@ -1,3 +1,5 @@
+# This file is a mess, ignore it for now while I get my shit together.
+
 from libs.core.conf import conf
 
 from discord.ext import commands as cmds

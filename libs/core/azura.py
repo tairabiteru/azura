@@ -47,6 +47,7 @@ class Azura:
         self.bot.run(conf.token)
 
     def deconstruct(self):
+        """Call before stopping the bot to cleanly exit."""
         logprint("Terminating all subroutines...", type="warn")
         self.killSubroutines()
         logprint("Shutting down lavalink...", type="warn")
@@ -61,6 +62,7 @@ class Azura:
                 subroutine.cancel()
 
     def initLavalink(self):
+        """Initialize Lavalink node."""
         command = conf.wavelink.jvmPath
         path = conf.wavelink.lavalinkPath
         if not conf.wavelink.verbose:
@@ -72,6 +74,7 @@ class Azura:
             time.sleep(0.1)
 
     def killLavalink(self):
+        """Stop Lavalink node."""
         self.lavalink_process.kill()
 
     def initialize(self):

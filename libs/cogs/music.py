@@ -31,14 +31,36 @@ BUTTONS = {
 }
 
 
+def enqArgParse(query):
+    """Parse out arguments from enqueueing commands."""
+    enqopts = ['fifo', 'lifo', 'interlace', 'random']
+    args = {
+        'shuffle': False,
+        'mode': 'FIFO'
+    }
+
+    if "--shuffle" in query:
+        args['shuffle'] = True
+        query = query.replace("--shuffle", "").strip()
+
+    for opt in enqopts:
+        if f"--{opt}" in query:
+            args['mode'] = opt.upper()
+            query = query.replace(f"--{opt}", "").strip()
+    return (query, args)
+
+
 class Music(commands.Cog, wavelink.WavelinkMixin):
+    """Define music cog."""
     def __init__(self, bot):
+        """Initialize music cog."""
         self.bot = bot
         self.wavelink = wavelink.Client(bot=bot)
         self.bot.loop.create_task(self.start_nodes())
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
+        """Disconnect bot when no one is left in the VC."""
         if not member.bot and after.channel is None:
             members = list([m.id for m in before.channel.members])
             if self.bot.user.id in members and len(members) == 1:
@@ -46,13 +68,16 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
+        """Set up to handle buttons."""
         await self.handle_button(reaction, user)
 
     @commands.Cog.listener()
     async def on_reaction_remove(self, reaction, user):
+        """Set up to handle buttons."""
         await self.handle_button(reaction, user)
 
     async def handle_button(self, reaction, user):
+        """Handle buttons."""
         if user.id == self.bot.user.id:
             return
 
@@ -98,18 +123,21 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     @wavelink.WavelinkMixin.listener()
     async def on_node_ready(self, node):
+        """Log when Lavalink node is ready."""
         logprint(f"Connected to node {node.host}:{node.port} as {node.identifier}.")
 
     @wavelink.WavelinkMixin.listener("on_track_stuck")
     @wavelink.WavelinkMixin.listener("on_track_end")
     @wavelink.WavelinkMixin.listener("on_track_exception")
     async def on_player_stop(self, node, payload):
+        """Advance the track, or repeat if mode is set."""
         if payload.player.queue.repeat_mode == Repeat.ONE:
             await payload.player.repeat_track()
         else:
             await payload.player.advance()
 
     async def start_nodes(self):
+        """Initialize Lavalink node."""
         await self.bot.wait_until_ready()
 
         nodes = {
@@ -128,6 +156,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
     @wavelink.WavelinkMixin.listener("on_track_start")
     async def on_track_start(self, node, payload):
+        """
+        Handle the initialization of the info message and the player message.
+        Also start tasks to update the interface periodically.
+        """
         try:
             player, track = (payload.player, payload.player.queue.current_track)
             member = Member.obtain(track.requester.id)
@@ -153,12 +185,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player.interface_task = self.bot.loop.create_task(self.interface_updater(track.ctx, track.id))
 
     def get_player(self, obj):
+        """Obtain player either from ctx or guild."""
         if isinstance(obj, commands.Context):
             return self.wavelink.get_player(obj.guild.id, cls=Player, context=obj)
         elif isinstance(obj, discord.Guild):
             return self.wavelink.get_player(obj.id, cls=Player)
 
     async def interface_updater(self, ctx, id):
+        """Task that updates the player interface periodically."""
         player = self.get_player(ctx)
         if player is None:
             return
@@ -261,6 +295,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         """
         player = self.get_player(ctx)
 
+        query, args = enqArgParse(query)
+
         if not player.is_connected:
             channel = await player.connect(ctx)
             if not channel:
@@ -271,12 +307,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         if not url_is_valid(query):
             query = f"ytsearch:{query}"
         try:
-            tracks = await self.wavelink.get_tracks(query)
-            await player.add_tracks(ctx, tracks)
+            await self.wavelink.get_tracks(query)
+            await player.add_enqueue_job(ctx, self.wavelink, query, [query], mode=args['mode'])
         except NoTracksFound:
             return await ctx.send("I couldn't find a track with that name. Try being less specific, or use a link.")
 
-    @command(aliases=['nq', 'enq'])
+    @command(aliases=['nq', 'enq', 'nqf', 'enqf', 'nqfifo', 'enqfifo', 'enqueue_fifo'])
     async def enqueue(self, ctx, *, playlist_rq):
         """
         Syntax: `{pre}{command_name} <playlist> [--shuffle]`
@@ -302,10 +338,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         `{pre}{command_name} Lo-Fi --shuffle`
         """
         member = Member.obtain(ctx.author.id)
-        shuffle = False
-        if playlist_rq.endswith("--shuffle"):
-            shuffle = True
-            playlist_rq = playlist_rq.replace("--shuffle", "").strip()
+
+        playlist_rq, args = enqArgParse(playlist_rq)
 
         plentries = []
         member = Member.obtain(ctx.author.id)
@@ -318,7 +352,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 return await ctx.send(f"There are no entries in `{playlist}`.")
             plentries += member.playlists[playlist]
 
-        if shuffle:
+        if args['shuffle']:
             random.shuffle(plentries)
 
         player = self.get_player(ctx)
@@ -328,20 +362,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             if not channel:
                 return
             await player.set_volume(member.last_volume)
+        await player.add_enqueue_job(ctx, self.wavelink, playlist, plentries, mode=args['mode'])
 
-        enqueued, failures = await player.add_playlist(ctx, self.wavelink, plentries)
-        msg = f"Enqueued {len(enqueued)} song(s)"
-        if failures:
-            msg += f" with {len(failures)} failure(s):```CSS\n"
-            for failure in failures:
-                msg += f"{failure.generator} - {failure.custom_title}\n"
-            msg += "```\nThis is usually because the videos have been removed from Youtube."
-            await ctx.send(msg)
-        else:
-            await ctx.send(msg + ".", delete_after=30)
-
-    @command(aliases=['rnq', 'renq'])
-    async def random_enqueue(self, ctx, *, playlist):
+    @command(aliases=['snq', 'senq', 'snqf', 'senqf', 'snqfifo', 'senqfifo'])
+    async def shuffle_enqueue(self, ctx, *, playlist):
         """
         Syntax: `{pre}{command_name} <playlist>`
 
@@ -350,8 +374,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         **Grant Level:** `{grant_level}`
 
         __**Description**__
-        Enqueues a playlist to be played in random order. This is just a
-        shortcut for `{pre}enqueue <playlist> --shuffle`.
+        Enqueues a playlist in shuffled order, using the FIFO enqueueing method.
+        This is just a shortcut for `{pre}enqueue <playlist> --shuffle`.
 
         __**Arguments**__
         `<playlist>` - The name of the playlist to be enqueued. Only playlists
@@ -365,6 +389,184 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         """
         enqueue = self.bot.get_command('enqueue')
         await ctx.invoke(enqueue, playlist_rq=f"{playlist} --shuffle")
+
+    @command(aliases=['nql', 'enql', 'nqlifo', 'enqlifo'])
+    async def enqueue_lifo(self, ctx, *, playlist):
+        """
+        Syntax: `{pre}{command_name} <playlist>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Enqueues a playlist in order, using the LIFO enqueueing method.
+        LIFO stands for "Last In, First Out" and enqueues songs placing them
+        at the *front* of the queue, before all others. This command is a
+        shortcut for `{pre}enqueue <playlist> --lifo`.
+
+        __**Arguments**__
+        `<playlist>` - The name of the playlist to be enqueued. Only playlists
+        you own can be enqueued by you. To see your playlists, you can run
+        {pre}show_playlist. To define them, see the commands in the Playlisting
+        cog.
+
+        __**Example Usage**__
+        `{pre}{command_name} Electronic`
+        `{pre}{command_name} Lo-Fi`
+        """
+        enqueue = self.bot.get_command('enqueue')
+        await ctx.invoke(enqueue, playlist_rq=f"{playlist} --lifo")
+
+    @command(aliases=['snql', 'senql', 'snqlifo', 'senqlifo'])
+    async def shuffle_enqueue_lifo(self, ctx, *, playlist):
+        """
+        Syntax: `{pre}{command_name} <playlist>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Enqueues a playlist in shuffled order, using the LIFO enqueueing method.
+        LIFO stands for "Last In, First Out" and enqueues songs placing them
+        at the *front* of the queue, before all others.
+        This is just a shortcut for `{pre}enqueue <playlist> --lifo --shuffle`.
+
+        __**Arguments**__
+        `<playlist>` - The name of the playlist to be enqueued. Only playlists
+        you own can be enqueued by you. To see your playlists, you can run
+        {pre}show_playlist. To define them, see the commands in the Playlisting
+        cog.
+
+        __**Example Usage**__
+        `{pre}{command_name} Electronic`
+        `{pre}{command_name} Lo-Fi`
+        """
+        enqueue = self.bot.get_command('enqueue')
+        await ctx.invoke(enqueue, playlist_rq=f"{playlist} --shuffle --lifo")
+
+    @command(aliases=['nqr', 'enqr', 'nqrandom', 'enqrandom'])
+    async def enqueue_random(self, ctx, *, playlist):
+        """
+        Syntax: `{pre}{command_name} <playlist>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Enqueues a playlist in order, using the RANDOM enqueueing method.
+        In RANDOM enqueueing, the positions that songs are enqueued at is
+        entirely random. Note that while similar to shuffling a playlist, it is
+        not the same. Rather than placing songs strictly at the front (LIFO) or
+        or the back (FIFO), or interweaving them (INTERLACE), songs have their
+        positions determined entirely randomly. This command is a shortcut for
+        `{pre}enqueue <playlist> --random`.
+
+        __**Arguments**__
+        `<playlist>` - The name of the playlist to be enqueued. Only playlists
+        you own can be enqueued by you. To see your playlists, you can run
+        {pre}show_playlist. To define them, see the commands in the Playlisting
+        cog.
+
+        __**Example Usage**__
+        `{pre}{command_name} Electronic`
+        `{pre}{command_name} Lo-Fi`
+        """
+        enqueue = self.bot.get_command('enqueue')
+        await ctx.invoke(enqueue, playlist_rq=f"{playlist} --lifo")
+
+    @command(aliases=['snqr', 'senqr', 'snqrandom', 'senqrandom'])
+    async def shuffle_enqueue_random(self, ctx, *, playlist):
+        """
+        Syntax: `{pre}{command_name} <playlist>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Enqueues a playlist in shuffled order, using the RANDOM enqueueing method.
+        In RANDOM enqueueing, the positions that songs are enqueued at is
+        entirely random. Note that while similar to shuffling a playlist, it is
+        not the same. Rather than placing songs strictly at the front (LIFO) or
+        or the back (FIFO), or interweaving them (INTERLACE), songs have their
+        positions determined entirely randomly. This command is a shortcut for
+        `{pre}enqueue <playlist> --random --shuffle`.
+
+        __**Arguments**__
+        `<playlist>` - The name of the playlist to be enqueued. Only playlists
+        you own can be enqueued by you. To see your playlists, you can run
+        {pre}show_playlist. To define them, see the commands in the Playlisting
+        cog.
+
+        __**Example Usage**__
+        `{pre}{command_name} Electronic`
+        `{pre}{command_name} Lo-Fi`
+        """
+        enqueue = self.bot.get_command('enqueue')
+        await ctx.invoke(enqueue, playlist_rq=f"{playlist} --shuffle --random")
+
+    @command(aliases=['nqi', 'enqi', 'nqinterlace', 'enqinterlace'])
+    async def enqueue_interlace(self, ctx, *, playlist):
+        """
+        Syntax: `{pre}{command_name} <playlist>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Enqueues a playlist in order, using the INTERLACE enqueueing method.
+        In INTERLACE enqueueing, songs are enqueued every `n` positions, where
+        `n` is the number of unique song requesters in the current queue, plus 1.
+        For example, if two people have songs in the queue, one song from your
+        playlist will be enqueued in every third position.
+        This command is a shortcut for `{pre}enqueue <playlist> --interlace`.
+
+        __**Arguments**__
+        `<playlist>` - The name of the playlist to be enqueued. Only playlists
+        you own can be enqueued by you. To see your playlists, you can run
+        {pre}show_playlist. To define them, see the commands in the Playlisting
+        cog.
+
+        __**Example Usage**__
+        `{pre}{command_name} Electronic`
+        `{pre}{command_name} Lo-Fi`
+        """
+        enqueue = self.bot.get_command('enqueue')
+        await ctx.invoke(enqueue, playlist_rq=f"{playlist} --interlace")
+
+    @command(aliases=['snqi', 'senqi', 'snqinterlace', 'senqinterlace'])
+    async def shuffle_enqueue_interlace(self, ctx, *, playlist):
+        """
+        Syntax: `{pre}{command_name} <playlist>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Enqueues a playlist in shuffled order, using the INTERLACE enqueueing method.
+        In INTERLACE enqueueing, songs are enqueued every `n` positions, where
+        `n` is the number of unique song requesters in the current queue, plus 1.
+        For example, if two people have songs in the queue, one song from your
+        playlist will be enqueued in every third position.
+        This command is a shortcut for `{pre}enqueue <playlist> --interlace --shuffle`.
+
+        __**Arguments**__
+        `<playlist>` - The name of the playlist to be enqueued. Only playlists
+        you own can be enqueued by you. To see your playlists, you can run
+        {pre}show_playlist. To define them, see the commands in the Playlisting
+        cog.
+
+        __**Example Usage**__
+        `{pre}{command_name} Electronic`
+        `{pre}{command_name} Lo-Fi`
+        """
+        enqueue = self.bot.get_command('enqueue')
+        await ctx.invoke(enqueue, playlist_rq=f"{playlist} --shuffle --interlace")
 
     @command()
     async def pause(self, ctx):
@@ -436,8 +638,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         """
         player = self.get_player(ctx)
         player.queue.clear()
-        if player.enqueueing.is_set():
-            player.stop_signal.set()
         await player.stop()
         await ctx.send("Playback terminated, queue emptied.")
 
@@ -622,8 +822,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         try:
             await player.infomsg.delete()
             await player.plyrmsg.delete()
+            await player.enqmsg.delete()
         except AttributeError:
             pass
+        player.enqmsg = None
         player.infomsg = await ctx.send(embed=player.queue.info_embed(ctx.bot))
         player.plyrmsg = await ctx.send(embed=player.player_embed())
 
@@ -715,17 +917,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         admin = Member.obtain(conf.ownerID)
         plentries = admin.playlists["Christmas"]
         random.shuffle(plentries)
-        enqueued, failures = await player.add_playlist(ctx, self.wavelink, plentries)
-        msg = f"Enqueued {len(enqueued)} song(s)"
-        if failures:
-            msg += f" with {len(failures)} failure(s):```CSS\n"
-            for failure in failures:
-                msg += f"{failure.generator} - {failure.custom_title}\n"
-            msg += "```"
-        else:
-            msg += "."
-        await ctx.send(msg)
+        await player.add_enqueue_job(ctx, self.wavelink, "Christmas Music", plentries)
 
 
 def setup(bot):
+    """Setup music cog."""
     bot.add_cog(Music(bot))

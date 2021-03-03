@@ -1,3 +1,5 @@
+"""Defines playlisting cog. Everything related to creating and modifying playlists."""
+
 from libs.core.conf import conf
 from libs.core.permissions import command
 from libs.orm.member import Member, PlaylistExists, PlaylistNotFound, EntryExists, EntryNotFound
@@ -7,7 +9,9 @@ from libs.ext.utils import SimpleValidation
 import discord
 from discord.ext import commands
 
+
 def timecode_to_seconds(timecode):
+    """Convert timecodes to seconds."""
     timecode = timecode.split(":")
     if len(timecode) == 1:
         return int(timecode[0])
@@ -24,7 +28,10 @@ def timecode_to_seconds(timecode):
             multiplier /= 60
         return int(total)
 
+
 def parse_args(string):
+    """Parse arguments from playlist commands."""
+    # This is ugly and I hate it.
     args = string.split("--")
     generator = args.pop(0).lstrip().rstrip()
     name = ""
@@ -45,13 +52,15 @@ def parse_args(string):
     return (generator, name, playlists, start, end)
 
 
-
 class Playlisting(commands.Cog):
+    """Define playlisting cog."""
+
     def __init__(self, bot):
+        """Inititialize cog."""
         self.bot = bot
 
     @command(aliases=['hist'])
-    async def history(self, ctx, member : discord.Member=None):
+    async def history(self, ctx, member: discord.Member = None):
         """
         Syntax: `{pre}{command_name} [@member]`
 
@@ -140,7 +149,6 @@ class Playlisting(commands.Cog):
                 else:
                     member.del_playlist(name)
         return await ctx.send(f"The playlist `{name}` has been deleted.")
-
 
     @command(aliases=['plshow', 'showpl', 'lspl'])
     async def show_playlist(self, ctx, *, name=None):

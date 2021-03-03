@@ -15,6 +15,7 @@ routes = web.RouteTableDef()
 
 
 def get_member(bot, member):
+    """Obtain a member from all possible members."""
     for guild in bot.guilds:
         for m in guild.members:
             if member.uid == m.id:
@@ -23,9 +24,10 @@ def get_member(bot, member):
 
 
 async def updateEq(bot, member):
+    """Update the equalizer given the member."""
     member_obj = get_member(bot, member)
     music = bot.get_cog('Music')
-    if member_obj.voice.channel == None:
+    if member_obj.voice.channel is None:
         return
 
     player = music.get_player(member_obj.guild)
@@ -36,12 +38,14 @@ async def updateEq(bot, member):
 @routes.get("/")
 @template("index.html")
 async def index(request):
+    """Handle landing page."""
     return {'bot': request.app.bot, 'version': Revisioning.obtain().current}
 
 
 @routes.get("/settings")
 @template("settings.html")
 async def settings_page(request):
+    """Handle settings page."""
     session = await handleIdentity(request, scope="identify")
     uid = session['uid']
     cleanGetParams(request)
@@ -54,7 +58,7 @@ async def settings_page(request):
 @routes.get("/playlists")
 @template("playlists.html")
 async def playlists(request):
-    """Handle main landing page."""
+    """Handle playlist page."""
     session = await handleIdentity(request, scope="identify")
     uid = session['uid']
 
@@ -66,6 +70,12 @@ async def playlists(request):
 
 @routes.post("/api/save-playlist")
 async def api_saveplaylist(request):
+    """
+    Handle AJAX requests to save playlists.
+
+    This handles both changes to playlists, and changes to the names
+    of playlists.
+    """
     session = await handleIdentity(request, scope="identify")
     uid = session['uid']
 
@@ -122,6 +132,7 @@ async def api_saveplaylist(request):
 
 @routes.post("/api/delete-playlist")
 async def api_deleteplaylist(request):
+    """Handle AJAX request to delete playlist."""
     session = await handleIdentity(request, scope="identify")
     uid = session['uid']
 
@@ -138,6 +149,7 @@ async def api_deleteplaylist(request):
 
 @routes.post("/api/settings/save")
 async def api_settings_save(request):
+    """Handle AJAX request to save settings."""
     session = await handleIdentity(request, scope="identify")
     uid = session['uid']
 
@@ -157,6 +169,7 @@ async def api_settings_save(request):
 
 @routes.post("/api/eq/create")
 async def api_eq_create(request):
+    """Handle AJAX request to create an equalizer."""
     session = await handleIdentity(request, scope="identify")
     uid = session['uid']
 
@@ -167,7 +180,7 @@ async def api_eq_create(request):
     if eq:
         return web.Response(text=f"Error: An equalizer named '{data['name']}' already exists.")
 
-    data['levels'] = member.getEq(data['based_on']).levels if data['based_on'] != None else Equalizer.DEFAULTS
+    data['levels'] = member.getEq(data['based_on']).levels if data['based_on'] is not None else Equalizer.DEFAULTS
     eq = Equalizer.buildFromJSON(data)
 
     member.equalizers.append(eq)
@@ -177,6 +190,7 @@ async def api_eq_create(request):
 
 @routes.post("/api/eq/obtain")
 async def api_eq_obtain(request):
+    """Handle AJAX request to obtain equalizer."""
     session = await handleIdentity(request, scope="identify")
     uid = session['uid']
 
@@ -198,6 +212,7 @@ async def api_eq_obtain(request):
 
 @routes.post("/api/eq/change")
 async def api_eq_change(request):
+    """Handle AJAX request to change equalizers."""
     session = await handleIdentity(request, scope="identify")
     uid = session['uid']
 
@@ -217,6 +232,7 @@ async def api_eq_change(request):
 
 @routes.post("/api/eq/delete")
 async def api_eq_delete(request):
+    """Handle AJAX request to delete an equalizer."""
     session = await handleIdentity(request, scope="identify")
     uid = session['uid']
 
@@ -242,6 +258,7 @@ async def api_eq_delete(request):
 
 @routes.post("/api/eq/levelset")
 async def api_eq_levelset(request):
+    """Handle AJAX request to set the levels of an equalizer."""
     session = await handleIdentity(request, scope="identify")
     uid = session['uid']
 
