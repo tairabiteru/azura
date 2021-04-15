@@ -37,7 +37,7 @@ You can run `-help` for a list of all commands, and `-help [command]` to see det
 * Aww, that's a lot of work though. Can't you make her public?
   * No.
 * Why?
-  * Because while I'm perfectly willing to share my code with the world, my server does a lot more than just run music bots all day. Go get your own damn RAM.
+  * Because while I'm perfectly willing to share my code with the world, my server does a lot more than just run music bots all day. Go get your own RAM.
 * How do you get the dash to work?
   * The dash operates on an internal webserver that is disabled by default. When enabled it runs (by default) on `localhost:8080`. All of these settings can be found in `settings.toml`. Once started, the internal webserver can either be accessed directly at the appropriate address in a web browser, or it can be reverse proxied through a proper webserver like Apache 2. I won't explain that process here.
 * Can this be run on Macrosoft&reg; Winders&trade;?
