@@ -4,7 +4,7 @@ Core bot functions and initialization.
 Everything comes together in this file to perform startup procedures,
 validate settings, and initialize the bot upon startup.
 """
-from libs.core.conf import conf, confs
+from libs.core.conf import conf2 as conf, confs
 from libs.core.help import Help
 from libs.ext.utils import portIsOpen, logHook
 from libs.dash.core import Dash
@@ -16,10 +16,10 @@ from discord.ext import commands
 import os
 import pickle
 import re
-import traceback
 import subprocess
 import sys
 import time
+import traceback
 import wavelink
 
 
@@ -112,6 +112,7 @@ class Azura:
         intents.members = True
         intents.presences = True
 
+        # See about taking '—' as a prefix too to correct iphones.
         bot = commands.Bot(
             command_prefix=commands.when_mentioned_or(conf.prefix),
             description=conf.description,
@@ -124,7 +125,7 @@ class Azura:
         bot.logger = conf.logger
         bot.log = conf.logger.log
 
-        bot.log(f"Version established as {rev.current}")
+        bot.log(f"Version established as {rev.current}.")
 
         if conf.wavelink.run:
             self.initLavalink()

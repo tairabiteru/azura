@@ -2,14 +2,13 @@
 
 from libs.core.conf import conf
 from libs.core.permissions import command
-from libs.core.log import logprint
 from libs.ext.utils import url_is_valid, localnow
 from libs.orm.member import Member
 
 from libs.ext.player.player import Player
 from libs.ext.player.queue import Repeat
 from libs.ext.player.errors import QueueIsEmpty, AlreadyConnectedToChannel, \
- NoVoiceChannel, NoTracksFound
+ NoVoiceChannel, NoTracksFound, EndOfQueue
 
 import asyncio
 import wavelink
@@ -55,7 +54,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     def __init__(self, bot):
         """Initialize music cog."""
         self.bot = bot
-        self.wavelink = wavelink.Client(bot=bot)
+        self.wavelink = self.bot.wavelink
         self.bot.loop.create_task(self.start_nodes())
 
     @commands.Cog.listener()
@@ -86,7 +85,10 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             if reaction.message.id != player.plyrmsg.id:
                 return
         except AttributeError:
-            pass
+            if player.plyrmsg is None:
+                return
+            else:
+                pass
 
         member = Member.obtain(user.id)
 
@@ -117,14 +119,13 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             mode = "REPEAT ONE" if player.queue.repeat_mode == Repeat.ONE else "OFF"
             await player.plyrmsg.channel.send(f"Repeat mode set to `{mode}`.", delete_after=15)
         if reaction.emoji == BUTTONS['LOOP_ALL']:
-            player.queue.repeat_mode = Repeat.NONE if player.queue.repeat_mode != Repeat.NONE else Repeat.ALL
             mode = "REPEAT ALL" if player.queue.repeat_mode == Repeat.ALL else "OFF"
             await player.plyrmsg.channel.send(f"Repeat mode set to `{mode}`.", delete_after=15)
 
     @wavelink.WavelinkMixin.listener()
     async def on_node_ready(self, node):
         """Log when Lavalink node is ready."""
-        logprint(f"Connected to node {node.host}:{node.port} as {node.identifier}.")
+        self.bot.log(f"Connected to node {node.host}:{node.port} as {node.identifier}.")
 
     @wavelink.WavelinkMixin.listener("on_track_stuck")
     @wavelink.WavelinkMixin.listener("on_track_end")
@@ -166,7 +167,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             member.update_history(track)
             messages = await track.ctx.channel.history(limit=2).flatten()
             messages = list([message.id for message in messages])
-        except QueueIsEmpty:
+        except (QueueIsEmpty, EndOfQueue):
             return
 
         try:
@@ -182,6 +183,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             player.plyrmsg = await track.ctx.send(embed=player.player_embed())
             for button in list(BUTTONS.values()):
                 await player.plyrmsg.add_reaction(button)
+        except QueueIsEmpty:
+            return
         player.interface_task = self.bot.loop.create_task(self.interface_updater(track.ctx, track.id))
 
     def get_player(self, obj):
@@ -211,7 +214,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 await asyncio.sleep(1)
         except QueueIsEmpty:
             await asyncio.sleep(1)
-        return
+        except EndOfQueue:
+            return
 
     @command(aliases=['join', 'con'])
     async def connect(self, ctx):
@@ -304,18 +308,27 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             member = Member.obtain(ctx.author.id)
             await player.set_volume(member.last_volume)
 
+        member = Member.obtain(ctx.author.id)
         if not url_is_valid(query):
             query = f"ytsearch:{query}"
+            tracks = await self.wavelink.get_tracks(query)
+            if member.settings.promptOnSearch:
+                track = await player.choose_track(ctx, tracks)
+                if track is None:
+                    return
+            else:
+                track = tracks[0]
+        else:
+            track = query
         try:
-            await self.wavelink.get_tracks(query)
-            await player.add_enqueue_job(ctx, self.wavelink, query, [query], mode=args['mode'])
+            await player.add_enqueue_job(ctx, self.wavelink, query.replace("ytsearch:", ""), [track], mode=args['mode'])
         except NoTracksFound:
             return await ctx.send("I couldn't find a track with that name. Try being less specific, or use a link.")
 
     @command(aliases=['nq', 'enq', 'nqf', 'enqf', 'nqfifo', 'enqfifo', 'enqueue_fifo'])
     async def enqueue(self, ctx, *, playlist_rq):
         """
-        Syntax: `{pre}{command_name} <playlist> [--shuffle]`
+        Syntax: `{pre}{command_name} <playlist1>|[playlist2]|[playlist3] [--shuffle]`
 
         **Aliases:** `{aliases}`
         **Node:** `{node}`
@@ -323,7 +336,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
         __**Description**__
         Enqueues a playlist to be played. By default, it enqueues playlists
-        in the order they exist in. `--shuffle` can be specified to shuffle the
+        in the order they exist in. Multiple playlists`--shuffle` can be specified to shuffle the
         playlist if desired.
 
         __**Arguments**__
@@ -337,16 +350,13 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         `{pre}{command_name} Electronic`
         `{pre}{command_name} Lo-Fi --shuffle`
         """
-        member = Member.obtain(ctx.author.id)
-
         playlist_rq, args = enqArgParse(playlist_rq)
-
         plentries = []
         member = Member.obtain(ctx.author.id)
         for playlist in playlist_rq.split("|"):
             playlist = member.playlist_exists(playlist.strip())
-            if not playlist:
-                return await ctx.send(f"No playlist named `{playlist}` exists.")
+            if playlist is None:
+                return await ctx.send(f"No playlist named `{playlist_rq}` exists.")
 
             if len(member.playlists[playlist]) == 0:
                 return await ctx.send(f"There are no entries in `{playlist}`.")
@@ -568,6 +578,32 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         enqueue = self.bot.get_command('enqueue')
         await ctx.invoke(enqueue, playlist_rq=f"{playlist} --shuffle --interlace")
 
+    @command(aliases=['dq', 'deq', 'cleanqueue', 'queueclean', 'qclean', 'cleanq'])
+    async def dequeue(self, ctx, member: discord.Member = None):
+        """
+        Syntax: `{pre}{command_name} [@Member]`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Removes songs from the queue. How it does this depends on the arguments
+        passed.
+
+        __**Arguments**__
+        `[@Member]` - The optional member argument. If specified, any songs
+        requested by the specified member will be removed from the queue.
+        If not specified, all songs requested by members who are not in the same
+        voice channel as the bot at the time the command is run will be removed.
+
+        __**Example Usage**__
+        `{pre}{command_name}`
+        `{pre}{command_name} @Taira`
+        """
+        player = self.get_player(ctx)
+        await player.add_enqueue_job(ctx, self.wavelink, member=member, mode='DEQ')
+
     @command()
     async def pause(self, ctx):
         """
@@ -769,8 +805,19 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         """
         player = self.get_player(ctx)
 
-        if player.queue.empty:
+        try:
+            status = player.queue.current_track
+            status = "good"
+        except QueueIsEmpty:
+            status = "empty"
+        except EndOfQueue:
+            status = "end"
+
+        if status == "empty":
             return await ctx.send("The queue is empty.")
+        if status == "end":
+            return await ctx.send("The queue has reached the end.")
+
 
         embed = discord.Embed(
             title="Queue",

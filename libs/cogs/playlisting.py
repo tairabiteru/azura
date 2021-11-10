@@ -221,7 +221,7 @@ class Playlisting(commands.Cog):
         __**Example Usage**__
         `{pre}{command_name} South Park - Kyle's Mom's a Bitch`
         `{pre}{command_name} https://www.youtube.com/watch?v=aiSdTQ9DW9g --name Boney M. - Rasputin`
-        `pre -adds https://www.youtube.com/watch?v=XFg43JqWmdM --name Pokemon Diamond and Pearl: Pokemon League (Night) Lo-Fi --playlists Lo-Fi, VGM --end: 4:32`
+        `{pre}{command_name} https://www.youtube.com/watch?v=XFg43JqWmdM --name Pokemon Diamond and Pearl: Pokemon League (Night) Lo-Fi --playlists Lo-Fi, VGM --end: 4:32`
         """
         member = Member.obtain(ctx.author.id)
         generator, custom_title, playlists, start, end = parse_args(cmdtext)

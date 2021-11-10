@@ -108,10 +108,10 @@ async def api_saveplaylist(request):
         # Check for repeats in title or generator.
         repeats_in_title = list([e[0] for e in data['entries']]).count(entry[0])
         repeats_in_gener = list([e[1] for e in data['entries']]).count(entry[1])
-        if repeats_in_gener > 1 or repeats_in_title > 1:
+        if repeats_in_gener > 1 or (repeats_in_title > 1 and entry[0] != ""):
             repeats.append(str(i+1))
 
-        entry = PlaylistEntry(custom_title=entry[0], generator=entry[1], start=entry[2], end=entry[3])
+        entry = PlaylistEntry(custom_title=entry[0], generator=entry[1].strip(), start=entry[2], end=entry[3])
         plentries.append(entry)
 
     if len(repeats) != 0:

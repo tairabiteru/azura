@@ -10,6 +10,7 @@ import random
 import re
 import urllib.request
 import socket
+import traceback
 
 
 def localnow():
@@ -301,3 +302,12 @@ def lint(path):
     }
     options = parse_options([path], **opts)
     return check_path(options, rootdir=".")
+
+
+def logHook(type, value, tb):
+    details = '\n'.join(traceback.extract_tb(tb).format())
+    msg = "Exception occurred:\n" \
+        f"Type: {type}\n" \
+        f"Value: {value}\n" \
+        f"Traceback: {details}"
+    conf.logger.log(msg, type="ERRR")

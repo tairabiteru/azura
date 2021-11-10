@@ -1,15 +1,21 @@
+"""
+Module defines the player itself.
+
+The player is defined as a single playback instance: one instance of the bot
+being connected to one channel, in one server.
+"""
+
 from libs.core.conf import conf
 from libs.ext.utils import ms_as_ts, progressBar, localnow
-from libs.ext.player.queue import Queue, Repeat, EnqueueJob
+from libs.ext.player.queue import Queue, Repeat, EnqueueJob, DequeueJob
 from libs.ext.player.errors import AlreadyConnectedToChannel, NoVoiceChannel, QueueIsEmpty
-from libs.orm.member import Member
 
 import asyncio
 import discord
 import queue
 import wavelink
 
-
+# Options for buttons in ytsearch selection.
 OPTSR = {
     "1️⃣": 0,
     "2️⃣": 1,
@@ -18,6 +24,7 @@ OPTSR = {
     "5️⃣": 4,
 }
 
+# Options for messages in ytsearch selection.
 OPTSM = {
     '1': 0,
     '2': 1,
@@ -28,7 +35,10 @@ OPTSM = {
 
 
 class Player(wavelink.Player):
+    """Define player."""
+
     def __init__(self, *args, **kwargs):
+        """Initialize player."""
         super().__init__(*args, **kwargs)
         self.queue = Queue()
         self.enqueueing = asyncio.Event()
@@ -38,41 +48,46 @@ class Player(wavelink.Player):
         self.enqueueJobs = queue.Queue()
         self.current_job = None
         self.enqmsg = None
+        self.plyrmsg = None
 
         self.adv_all_clear.set()
         self.enq_all_clear.set()
 
-
-
     async def connect(self, ctx, channel=None):
+        """Handle connection to VC."""
         if self.is_connected:
             raise AlreadyConnectedToChannel
 
         if ctx.author.voice.channel is None:
             raise NoVoiceChannel
         else:
-            channel =  ctx.author.voice.channel
+            channel = ctx.author.voice.channel
 
         await super().connect(channel.id)
         return channel
 
     async def teardown(self):
+        """Destroy player."""
         try:
             await self.halt()
             self.queue.clear()
-            self.enqueueJobs = queue.Queue()
             await self.destroy()
         except KeyError:
             pass
 
     async def halt(self):
+        """Halt the current jobs, clear the queue, then stop the player."""
         if self.current_job:
-            self.current_job.cancel.set()
+            self.current_job.cancel()
+        while not self.enqueueJobs.empty():
+            job = self.enqueueJobs.get()
+            job.cancel()
         self.enqueueJobs = queue.Queue()
         await self.stop()
 
     @property
     def current_repeat_mode(self):
+        """Return the current repeat mode in human form."""
         if self.queue.repeat_mode == Repeat.NONE:
             return "Off"
         elif self.queue.repeat_mode == Repeat.ONE:
@@ -80,13 +95,27 @@ class Player(wavelink.Player):
         elif self.queue.repeat_mode == Repeat.ALL:
             return "Current Queue"
 
-    async def add_enqueue_job(self, ctx, wl, name, playlist, mode='FIFO'):
-        job = EnqueueJob(ctx, wl, name, playlist, mode=mode)
+    async def add_enqueue_job(self, ctx, wl, name=None, playlist=None, member=None, mode='FIFO'):
+        """
+        Generate an EnqueueJob to be placed into the player's job queue.
+
+        This is called whenever anything is placed in the queue by any means.
+        We do it this way to allow for different enqueueing modes, as well as
+        ensuring thread safety.
+        """
+        pos = self.enqueueJobs.qsize() + 2 if self.current_job is not None else self.enqueueJobs.qsize() + 1
+        type = "Dequeueing" if mode == "DEQ" else "Enqueueing"
+        if mode == "DEQ":
+            job = DequeueJob(ctx, wl, self, playlist)
+        else:
+            job = EnqueueJob(ctx, wl, name, playlist, mode=mode)
+        await ctx.send(f"{type} request received. You are #{pos} in line.")
         self.enqueueJobs.put(job)
         if not self.enqueueing.is_set():
             await self.enqueue_task()
 
     async def enqueue_task(self):
+        """Task that runs to process jobs when available."""
         while True:  # Should be replaced with bot.is_closed() or something
             if self.enqueueJobs.empty():
                 break
@@ -101,16 +130,21 @@ class Player(wavelink.Player):
         self.enqueueing.clear()
 
     async def choose_track(self, ctx, tracks):
-        # Return first track if they have promptOnSearch turned off
-        member = Member.obtain(ctx.author.id)
-        if not member.settings.promptOnSearch:
-            return tracks[0]
+        """
+        Allow for track selection.
+
+        The vast majority of this function only fires when the command
+        executor has promptOnSearch turned on. If it's off, this function
+        simply returns the first result from a ytsearch, and stops cold.
+        Otherwise, this handles the message asking which result should be played
+        and the message response to that.
+        """
 
         def r_check(r, u):
             return (r.emoji in OPTSR.keys() and u == ctx.author and r.message.id == msg.id)
 
         def m_check(m):
-            return (m.content in OPTSM.keys() and m.author == ctx.author)
+            return (m.content in OPTSM.keys() or m.content.startswith(f"{conf.prefix}play")) and m.author == ctx.author
 
         embed = discord.Embed(
             title="Choose a song",
@@ -155,11 +189,25 @@ class Player(wavelink.Player):
             if is_reaction:
                 return tracks[OPTSR[reaction.emoji]]
             else:
-                await message.delete()
-                await ctx.message.delete()
+                try:
+                    await message.delete()
+                    await ctx.message.delete()
+                except discord.errors.NotFound:
+                    pass
+                if message.content.startswith(f"{conf.prefix}play"):
+                    return None
                 return tracks[OPTSM[message.content]]
 
     async def start_playback(self):
+        """
+        Call to begin playback.
+
+        More of a note to self than anything else, but a lot of care should be
+        taken when deciding to call this function. If it's called during
+        playback, the current track will end due to a REPLACE event being fired.
+        The conditions under which this function fires should be carefully,
+        and if you experience 'track skipping', this guy is probably the culprit.
+        """
         track = self.queue.current_track
         if track.end != -1:
             await self.play(track, start=track.start, end=track.end)
@@ -167,6 +215,15 @@ class Player(wavelink.Player):
             await self.play(track, start=track.start)
 
     async def advance(self):
+        """
+        Advance the queue.
+
+        The events here are a careful ballet orchestrated with the
+        enqueueing task, which ultimately comes down to the enqueueing jobs
+        being executed. The purpose of them is to ensure threadsafety by
+        not modifying the queue's state until we're positive that no modifications
+        are currently being made to the queue.
+        """
         self.enq_all_clear.clear()
         await self.adv_all_clear.wait()
 
@@ -183,9 +240,11 @@ class Player(wavelink.Player):
         self.enq_all_clear.set()
 
     async def repeat_track(self):
+        """Repeat the current track."""
         await self.play(self.queue.current_track)
 
     def completion_bar(self, length=conf.music.seekBarLength):
+        """Create the completion bar using the player's current state."""
         total_time = self.queue.current_track.length
         progress = progressBar(self.position, total_time, length=length)
         time_left = ms_as_ts(total_time - self.position)
@@ -193,6 +252,7 @@ class Player(wavelink.Player):
         return f"{time_left} {progress} {total_time}"
 
     def player_embed(self):
+        """Generate the player embed for use in the player message."""
         status = "Paused" if self.is_paused else "Now Playing"
         embed = discord.Embed(title=f"Playback Status - {status}", colour=discord.Colour(0x14ff), description=f"`{self.completion_bar()}`")
         embed.add_field(name="Song Time Elapsed", value=ms_as_ts(self.position))

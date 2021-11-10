@@ -215,6 +215,36 @@ class Issues(commands.Cog):
         issues.save()
         return await ctx.send("Issue #{id} reopened.".format(id=id))
 
+    @command(grant_level="explicit", aliases=['irc'])
+    async def issuerespondclose(self, ctx, id=None, *, response):
+        """
+        Syntax: `{pre}{command_name} <id> <response>`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Respond to the issue with the specified ID, then close it.
+
+        __**Arguments**__
+        `<id>` - The ID number of the issue to respond to.
+        `<response>` - The response to the issue.
+
+        __**Example Usage**__
+        `{pre}{command_name} 69 This is my response.`
+        """
+        if id is None:
+            return await ctx.send("You must specify the ID:\n{conf.prefix}issuerespondclose <id> <response>")
+        if not id.isdigit():
+            return await ctx.send(f"Invalid ID number: `{id}`.")
+        try:
+            IssuesMaster.obtain(id=int(id))
+        except KeyError:
+            return await ctx.send(f"No issue with the ID `{id}` exists.")
+        await ctx.invoke(self.bot.get_command("issuerespond"), id=id, response=response)
+        await ctx.invoke(self.bot.get_command("issueclose"), id=id)
+
     @command(grant_level="explicit", aliases=['it'])
     async def issuetag(self, ctx, command=None, status=None, id=None):
         """

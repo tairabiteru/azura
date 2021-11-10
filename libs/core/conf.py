@@ -4,12 +4,15 @@ This module contains all things related to the settings file.
 Any defaults or settings are found here, as well as validation for said
 settings, and folder creation and validation too.
 """
-
-from libs.core.log import logprint
-
 import os
 import sys
 import toml
+import colorama
+from colorama import Fore as color
+from colorama import Style
+import datetime
+
+colorama.init()
 
 __VERSION__ = "3.0"
 __VERSIONTAG__ = "Sapphirine Songstress"
@@ -23,6 +26,7 @@ BASE = {
     'ownerID': 0,
     'token': "",
     'secret': "",
+    'exclusionaryIDs': [],
     'dash': {
         'enabled': False,
         'host': 'localhost',
@@ -30,6 +34,7 @@ BASE = {
         'outfacingURL': ''
     },
     'wavelink': {
+        'run': True,
         'host': 'localhost',
         'port': 2333,
         'password': "",
@@ -73,13 +78,13 @@ def ensure(path):
     """
     try:
         os.makedirs(path)
-        logprint(f"Directory {path} does not exist. It has been created.", type='warn')
+        Logger().log(f"Directory {path} does not exist. It has been created.", type='warn')
         return path
     except FileExistsError:
         return path
     except PermissionError:
-        logprint(f"Error creating {path}.", type='crit')
-        logprint("Fatal, shutting down.", type='crit')
+        Logger().log(f"Error creating {path}.", type='crit')
+        Logger().log("Fatal, shutting down.", type='crit')
         sys.exit(-1)
 
 
@@ -101,7 +106,7 @@ class Conf:
     shortcuts to particular paths.
     """
 
-    def __init__(self):
+    def __init__(self, path="conf.toml"):
         """
         Initialize config.
 
@@ -113,16 +118,16 @@ class Conf:
         initialization of the bot itself.
         """
         try:
-            self._conf = toml.load("conf.toml")
+            self._conf = toml.load(path)
         except FileNotFoundError:
-            logprint("conf.toml was not found, generating...")
+            Logger().log("conf.toml was not found, generating...")
             self._conf = BASE
-            with open("conf.toml", "w") as confFile:
+            with open(path, "w") as confFile:
                 toml.dump(self._conf, confFile)
 
         self._constructPaths()
-
         self = recSetAttr(self, self._conf)
+        self.logger = Logger(logDir=self.logDir, file_prefix=self.name)
 
         if not self.dash.outfacingURL:
             self.dash.outfacingURL = self.dash.host
@@ -143,8 +148,9 @@ class Conf:
 
         root = os.getcwd()
         self._conf['rootDir'] = root
+        self._conf['logDir'] = ensure(os.path.join(root, "logs/"))
         self._conf['bashPath'] = os.path.join(root, self._conf['name'].lower() + ".sh")
-        self._conf['mainPath'] = os.path.join(root, "main.py")
+        self._conf['mainPath'] = os.path.join(root, self._conf['name'].lower() + ".py")
         self._conf['binDir'] = os.path.join(root, "bin/")
         self._conf['storageDir'] = ensure(os.path.join(root, "storage/"))
         self._conf['tempDir'] = ensure(os.path.join(self._conf['storageDir'], "temp/"))
@@ -179,7 +185,7 @@ class Conf:
                 bashFile.write("#!/bin/bash\n")
                 bashFile.write(f"cd {self.rootDir}\n")
 
-                bashFile.write(f"LOCKFILE={os.path.join(self.rootDir, 'lock')}\n")
+                bashFile.write(f"LOCKFILE={os.path.join(self.rootDir, f'{self.name}.lock')}\n")
                 bashFile.write("if test -f \"$LOCKFILE\"; then\n    rm $LOCKFILE\nfi\n\n")
                 bashFile.write(f"while true; do\n    python3 {self.mainPath}\n")
                 bashFile.write("    if test -f $LOCKFILE; then\n        break\n    fi\ndone")
@@ -198,13 +204,67 @@ class Conf:
 
         for attr in ['token', 'secret', 'ownerID']:
             if not getattr(self, attr, None):
-                logprint(f"{attr} is not set in conf.toml.", type='crit')
+                self.logger.log(f"{attr} is not set in conf.toml.", type='crit')
                 valid = False
 
         if not valid:
-            logprint("Critical settings are missing. Fatal, shutting down.", type='crit')
+            self.logger.log("Critical settings are missing. Fatal, shutting down.", type='crit')
             sys.exit(-1)
+
+
+class Logger:
+    COLOR_MAP = {
+        'INFO': color.WHITE,
+        'WARN': color.CYAN,
+        'ERRR': color.YELLOW,
+        'CRIT': color.RED
+    }
+
+    def __init__(self, logDir=None, file_prefix=None):
+        self.logDir = logDir
+        self.filePrefix = file_prefix
+
+    def banner(self, text):
+        """Print the bot's banner."""
+        os.system(f"toilet -f mono12 -F gay -F border {text}")
+
+    def version(self, text):
+        """Log the bot's version."""
+        self.log_to_file(f"\nVersion {text}\n")
+        print(color.WHITE + f"\nVersion {text}" + Style.RESET_ALL)
+
+    def latest_log_file(self):
+        files = list([file for file in os.listdir(self.logDir) if file.split("_")[0] == self.filePrefix])
+        files.sort(key=lambda date: datetime.datetime.strptime(date, f"{self.filePrefix}_%Y-%m-%d.log"))
+        return os.path.join(self.logDir, files[-1])
+
+    def log_to_file(self, message):
+        """Send logging to file."""
+        if self.logDir is not None:
+            if self.filePrefix is None:
+                fname = datetime.datetime.now().strftime("%Y-%m-%d.log")
+            else:
+                fname = datetime.datetime.now().strftime(f"{self.filePrefix}_%Y-%m-%d.log")
+            with open(os.path.join(self.logDir, fname), 'a') as file:
+                file.write(f"{message}\n")
+
+    def log(self, message, type="info"):
+        """
+        Handle console logging.
+
+        All messages may have a type specified. This changes the color of the
+        text which helps certain things stand out in the console.
+        """
+        type = type.upper()
+        timestamp = datetime.datetime.now().strftime('%Y|%m|%d %H:%M:%S')
+        color = Logger.COLOR_MAP[type]
+        output = f"[{type}][{timestamp}] {message}"
+        self.log_to_file(output)
+        print(f"{color}{output}{Style.RESET_ALL}")
 
 
 # Construct config.
 conf = Conf()
+conf2 = Conf("conf2.toml")
+
+confs = [conf, conf2]

@@ -3,8 +3,8 @@
 from libs.ext.utils import localnow, strfdelta, Validation, lint
 from libs.core.permissions import command, permission_exists
 from libs.core.conf import conf
-from libs.core.log import logprint
 from libs.core.azura import revisionCalc
+from libs.ext.utils import logHook
 from libs.orm.revisioning import Revisioning
 from libs.orm.uptime import UptimeRecords
 from libs.orm.member import Member
@@ -15,6 +15,9 @@ from discord.ext import commands
 import os
 import pickle
 import pyfiglet
+import sys
+
+sys.excepthook = logHook
 
 
 class Admin(commands.Cog):
@@ -23,6 +26,24 @@ class Admin(commands.Cog):
     def __init__(self, bot):
         """Initialize Cog."""
         self.bot = bot
+
+    @command(name="lint", grant_level="explicit")
+    async def _lint(self, ctx):
+        msg = await ctx.send("🔍 Performing code inspection...")
+        errors = lint(conf.rootDir)
+        if errors:
+            await msg.edit(content=f"❌ Reinitialization refused due to {len(errors)} error(s) in upstream code.")
+            me = self.bot.get_user(conf.ownerID)
+            msg = "__**Errors Detected in Upstream Code**__\n```"
+            for error in errors:
+                msg += f"[{error['number']}] [{error['filename']}] [Line #{error['lnum']}] {error['text']}\n"
+            if len(msg + "```") > 2000:
+                self.bot.log(msg + "```")
+                msg = "```Message too long for Discord. Sent to console."
+            await me.send(msg + "```")
+            return False
+        await msg.edit(content="✔️ Upstream code OK.")
+        return True
 
     @command(grant_level="explicit", aliases=['reinit'])
     async def restart(self, ctx, module="bot"):
@@ -45,26 +66,20 @@ class Admin(commands.Cog):
         `{pre}{command_name}`
         `{pre}{command_name} admin`
         """
-        msg = await ctx.send("🔍 Performing code inspection...")
-        errors = lint(conf.rootDir)
-        if errors:
-            await msg.edit(content=f"❌ Reinitialization refused due to {len(errors)} error(s) in upstream code.")
-            me = self.bot.get_user(conf.ownerID)
-            msg = "__**Errors Detected in Upstream Code**__\n```"
-            for error in errors:
-                msg += f"[{error['number']}] [{error['filename']}] [Line #{error['lnum']}] {error['text']}\n"
-            if len(msg + "```") > 2000:
-                print(msg + "```")
-                msg = "```Message too long for Discord. Sent to console."
-            return await me.send(msg + "```")
-        await msg.edit(content="✔️ Upstream code OK.")
+        no_errors = await ctx.invoke(self._lint)
+        if not no_errors:
+            return
 
         if module == "bot":
+            for gid, player in self.bot.wavelink.players.items():
+                if player.plyrmsg:
+                    await player.plyrmsg.channel.send("__**Notice**__\nDisconnected due to administrative reinitialization. Sorry for the inconvenience!")
+                await player.teardown()
             async with ctx.typing():
-                logprint("Restart called by {user}. Preparing for reinitialization...".format(user=ctx.author.name), type="warn")
+                self.bot.log(f"Restart called by {ctx.author.name}. Preparing for reinitialization...", type="warn")
                 await ctx.send("⚡ Preparing for reinitialization ⚡")
-                pickle.dump(ctx.channel.id, open("restart.init", "wb"))
-                logprint("...reinitializing now!", type="warn")
+                pickle.dump(ctx.channel.id, open(f"{self.bot.user.id}_restart.init", "wb"))
+                self.bot.log("...reinitializing now!", type="warn")
                 await self.bot.logout()
                 await self.bot.close()
         else:
@@ -73,7 +88,7 @@ class Admin(commands.Cog):
                     self.bot.reload_extension(mod)
                     rev, logoutput = revisionCalc()
                     if not self.bot.revised and str(rev.current) != str(self.bot.revision.current):
-                        logprint("Code has been revised since last initialization.", type="warn")
+                        self.bot.log("Code has been revised since last initialization.", type="warn")
                         self.bot.revised = True
                     return await ctx.send("`{cog}` reloaded.".format(cog=mod.split(".")[-1]))
             else:
@@ -106,9 +121,10 @@ class Admin(commands.Cog):
          There is __NO WAY__ to restart after a kill command without direct access to the server terminal!".format(name=conf.name)
         async with Validation(ctx, warn) as validation:
             if validation:
-                logprint("Kill called by {user}. Proceeding with shutdown...".format(user=ctx.author.name), type="warn")
+                self.bot.log(f"Kill called by {ctx.author.name}. Proceeding with shutdown...", type="warn")
                 await ctx.send("🔌 Kill signal recieved. Shutting down now...🔌")
-                os.system("touch {file}".format(file=os.path.join(conf.rootDir, "lock")))
+                lockfile = f"{conf.name}.lock" if self.bot.user.id == 779936386866216971 else f"{conf.name}2.lock"
+                os.system("touch {file}".format(file=os.path.join(conf.rootDir, lockfile)))
                 await ctx.send("Goodbye!")
                 await self.bot.logout()
                 await self.bot.close()
@@ -418,6 +434,34 @@ class Admin(commands.Cog):
             if topic.image:
                 embed.set_image(url=topic.image)
         return await ctx.send(embed=embed)
+
+    @command(grant_level="explicit")
+    async def tail(self, ctx, lines=25):
+        """
+        Syntax: `{pre}{command_name} [lines]`
+
+        **Aliases:** `{aliases}`
+        **Node:** `{node}`
+        **Grant Level:** `{grant_level}`
+
+        __**Description**__
+        Returns the last number of lines specified from the bot's logs.
+        If not specified, it defaults to 25.
+
+        __**Arguments**__
+        `[lines]` - The number of lines to return.
+
+        __**Example Usage**__
+        `{pre}{command_name}`
+        `{pre}{command_name} 10`
+        """
+        logfile = open(conf.logger.latest_log_file(), 'r')
+        lines = logfile.readlines()[-(lines):]
+        logfile.close()
+        lines = "".join(lines)
+        if len(lines) > 2000:
+            return await ctx.send("The number of lines requested exceeds 2,000 characters.")
+        return await ctx.send("```" + lines.replace("```", "'''") + "```")
 
 
 def setup(bot):
