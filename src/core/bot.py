@@ -5,18 +5,18 @@ This file serves sort of as the beginning point of the bot, as well as the
 global subroutine registry.
 """
 
-from core.conf import conf
+from core.conf import conf, initLogger
 from core.commands import SlashCommandCheckFailure
 from core.help import TopicContainer
+from ext.koe.koe import Koe, KoeEventHandler
 # from core.subroutines import subroutine
 from dash.core import Dash
 from orm.revisioning import Revisioning
 from orm.member import Member
 from orm.server import Server
-from ext.vox import Vox, VoxEventHandler
-from ext.execution import codeBlockCheck
 from ext.utils import localnow
 
+import colorlog
 import hikari
 import json
 import lavasnek_rs
@@ -24,15 +24,13 @@ import lightbulb
 import os
 import traceback
 
+import asyncio
+import socket
+import sys
+import os
 
-class Bot(lightbulb.Bot):
-    """
-    Define *my* bot.
 
-    The default bot provided by lightbulb doesn't quite meet all of the needs I
-    have. This subclass provides a bot which properly performs revisioning,
-    as well as initializes a dashboard and allows for subroutines.
-    """
+class Master(lightbulb.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -41,8 +39,12 @@ class Bot(lightbulb.Bot):
         conf.logger.debug(logoutput)
         self.version = str(revisioning.current)
         self.subroutines = []
+        self.subordinates = {}
         self.lavalink = None
+        self.api_port = conf.dash.port
+        self.koe = Koe(self)
         self.dash = None
+        self.logger = initLogger("master")
 
         self.last_initalization = localnow()
 
@@ -74,18 +76,22 @@ class Bot(lightbulb.Bot):
             except AttributeError:
                 pass
 
+    def run(self, *args, **kwargs):
+        return super().run(*args, **kwargs)
+
 
 hikari_loglevel = conf.hikari_loglevel if conf.hikari_loglevel else None
-bot = Bot(token=conf.token, prefix=conf.prefix, logs=hikari_loglevel, intents=hikari.Intents.ALL)
+bot = Master(token=conf.token, prefix=conf.prefix, logs=hikari_loglevel, intents=hikari.Intents.ALL)
 
 conf.logger.info(f"{conf.name} will now initialize into version {bot.version}.")
+bot.load_extension("cogs.music")
 conf.logger.info("Extension loading complete.")
 
 
 @bot.listen(hikari.ShardReadyEvent)
 async def on_ready(event):
     bot.last_api_connection = localnow()
-    conf.logger.info(f"API contact, {conf.name} is online.")
+    await bot.koe.initialize()
 
     bot.start_subroutines()
     bot.help = TopicContainer.build(bot)
@@ -97,11 +103,11 @@ async def on_ready(event):
             .set_password(conf.audio.lavalink_pass)
         )
         builder.set_start_gateway(False)
-        lava_client = await builder.build(VoxEventHandler())
-        bot.data.lavalink = lava_client
+        lava_client = await builder.build(KoeEventHandler())
+        bot.lavalink = lava_client
 
     if conf.dash.enabled:
-        bot.dash = Dash(bot)
+        bot.dash = Dash(bot, bot.api_port)
         loop = hikari.internal.aio.get_or_make_loop()
         loop.create_task(bot.dash.run())
 
@@ -118,20 +124,9 @@ async def on_ready(event):
         pass
 
 
-@bot.listen(hikari.GuildMessageCreateEvent)
-async def on_guild_message_create(event):
-    Member.process_event(bot, event)
-    await Server.process_event(bot, event)
-
-    vox = await Vox.getFromEvent(event, bot)
-    await vox.processTTSEvent(event)
-
-    await codeBlockCheck(bot, event)
-
-
 @bot.listen(hikari.VoiceStateUpdateEvent)
 async def voice_state_update(event):
-    await bot.data.lavalink.raw_handle_event_voice_state_update(
+    await bot.lavalink.raw_handle_event_voice_state_update(
         event.state.guild_id,
         event.state.user_id,
         event.state.session_id,
@@ -141,14 +136,9 @@ async def voice_state_update(event):
 
 @bot.listen(hikari.VoiceServerUpdateEvent)
 async def voice_server_update(event):
-    await bot.data.lavalink.raw_handle_event_voice_server_update(
+    await bot.lavalink.raw_handle_event_voice_server_update(
         event.guild_id, event.endpoint, event.token
     )
-
-
-@bot.listen(hikari.GuildReactionAddEvent)
-async def guild_reaction_add(event):
-    await Server.process_event(bot, event)
 
 
 @bot.listen(hikari.events.ExceptionEvent)

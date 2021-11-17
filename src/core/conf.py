@@ -14,38 +14,44 @@ import sys
 import time
 import toml
 
-COLORS = {
-    "DEBUG": "light_blue",
-    "INFO": "light_green",
-    "WARNING": "light_yellow",
-    "ERROR": "light_red",
-    "CRITICAL": "light_purple",
-}
 
-stdhandler = colorlog.StreamHandler()
-stdhandler.setFormatter(
-    colorlog.ColoredFormatter(
-        "%(log_color)s[%(asctime)s][HIKARI][%(levelname)s] %(message)s",
-        datefmt="%x %X",
-        reset=True,
-        log_colors=COLORS,
+def initLogger(name):
+    COLORS = {
+        "DEBUG": "light_blue",
+        "INFO": "light_green",
+        "WARNING": "light_yellow",
+        "ERROR": "light_red",
+        "CRITICAL": "light_purple",
+    }
+
+    stdhandler = colorlog.StreamHandler()
+    stdhandler.setFormatter(
+        colorlog.ColoredFormatter(
+            "%(log_color)s[%(asctime)s][%(name)s][%(levelname)s] %(message)s",
+            datefmt="%x %X",
+            reset=True,
+            log_colors=COLORS,
+        )
     )
-)
 
-if not os.path.exists("logs/"):
-    os.mkdir("logs/")
+    if not os.path.exists("logs/"):
+        os.mkdir("logs/")
 
-filehandler = TimedRotatingFileHandler("logs/bot.log", when="midnight")
-filehandler.setFormatter(logging.Formatter("[%(asctime)s][HIKARI][%(levelname)s] %(message)s"))
+    filehandler = TimedRotatingFileHandler("logs/bot.log", when="midnight")
+    filehandler.setFormatter(logging.Formatter("[%(asctime)s][%(name)s][%(levelname)s] %(message)s"))
 
-logger = colorlog.getLogger("bot")
-logger.addHandler(stdhandler)
-logger.addHandler(filehandler)
+    logger = colorlog.getLogger(name)
+    logger.addHandler(stdhandler)
+    logger.addHandler(filehandler)
+    return logger
 
 
-__VERSION__ = "3.9"
+logger = initLogger("MASTER")
+
+
+__VERSION__ = "4.0 α"
 # 4 will be Ultramarine Umbra
-__VERSIONTAG__ = "Sapphirine Songstress"
+__VERSIONTAG__ = "Ultramarine Umbra"
 
 BASE = {
     "name": "Azura",
@@ -60,6 +66,7 @@ BASE = {
     "ownerID": 0,
     "token": "",
     "secret": "",
+    "subordinate_tokens": [],
     "dash": {
         "enabled": False,
         "key": str(fernet.Fernet.generate_key()),

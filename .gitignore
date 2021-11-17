@@ -1,2 +1,8 @@
 
 *.json
+*.pyc
+*.log
+*.toml
+src/azura.sh
+logs/*
+azura.sh

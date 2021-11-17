@@ -110,13 +110,6 @@ def with_permission(command):
         )
         await command.callback(*args, **kwargs)
 
-        member = Member.obtain(ctx.author.id)
-        try:
-            member.command_usage[command.node] += 1
-        except KeyError:
-            member.command_usage[command.node] = 1
-        member.save()
-
         conf.logger.debug(
             f"Execution of {command.node} completed for {ctx.author.username} ({ctx.author.id})."
         )

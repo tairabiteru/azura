@@ -59,8 +59,9 @@ LOG_CONFIG = {
 
 
 class Dash:
-    def __init__(self, bot):
+    def __init__(self, bot, port, name=None):
         self.bot = bot
+        self.port = port
 
         self.app = sanic.Sanic(
             name=conf.name,
@@ -77,9 +78,10 @@ class Dash:
             self.app.ctx.jinja.add_env(filter.__name__, filter, scope="filters")
         self.app.ctx.bot = self.bot
 
-        self.loadRoutes("dash.routes.index")
-        self.loadRoutes("dash.routes.member_settings")
-        self.loadRoutes("dash.routes.server_settings")
+        # Welcome to the cum zone
+        self.loadRoutes("dash.routes.api")
+        # self.loadRoutes("dash.routes.member_settings")
+        # self.loadRoutes("dash.routes.server_settings")
 
     def loadRoutes(self, routeFile):
         module = importlib.import_module(routeFile)
@@ -90,7 +92,7 @@ class Dash:
     async def run(self):
         server = await self.app.create_server(
             host=conf.dash.host,
-            port=conf.dash.port,
+            port=self.port,
             access_log=False,
             debug=False,
             return_asyncio_server=True
