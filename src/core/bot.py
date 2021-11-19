@@ -103,7 +103,7 @@ async def on_ready(event):
             .set_password(conf.audio.lavalink_pass)
         )
         builder.set_start_gateway(False)
-        lava_client = await builder.build(KoeEventHandler())
+        lava_client = await builder.build(KoeEventHandler(bot))
         bot.lavalink = lava_client
 
     if conf.dash.enabled:

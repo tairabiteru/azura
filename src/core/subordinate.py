@@ -56,7 +56,7 @@ class Subordinate(lightbulb.Bot):
                 .set_password(conf.audio.lavalink_pass)
             )
             builder.set_start_gateway(False)
-            lava_client = await builder.build(KoeEventHandler())
+            lava_client = await builder.build(KoeEventHandler(self))
             self.lavalink = lava_client
 
     async def on_voice_state_update(self, event) -> None:

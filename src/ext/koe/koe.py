@@ -1,45 +1,195 @@
 from core.conf import conf
+from ext.utils import strfdelta
 from ext.koe.exceptions import AlreadyConnected, NoVoiceChannel, NoExistingSession, NoAvailableEndpoint, BadResponse
 
 import aiohttp
 import asyncio
+import datetime
 import hikari
+import urllib
 
 
-class KoeSession:
-    def __init__(self, endpoint, gid, vid, uid):
-        self.endpoint = endpoint
+class KoeBaseSession:
+    def __init__(self, gid, vid, cid):
         self.gid = gid
         self.vid = vid
-        self.uid = uid
+        self.cid = cid
+
+
+class LocalKoeSession(KoeBaseSession):
+    """
+    Abstraction of a local Koe session.
+
+    Local sessions are those controlled by the bot in which the session is
+    stored and controlled. In other words, a local session is one which is
+    possessed by the bot that's responsible for the session's playback.
+    """
+    def __init__(self, bot, gid, vid, cid):
+        self.bot = bot
+        self.now_playing_message = None
+        self.interactionListenerTask = None
+        self._volume = 100
+        super().__init__(gid, vid, cid)
+
+    def trackTimeline(self, position, length):
+        LENGTH = 40
+        percent = position / length
+        complete = "=" * int(percent * LENGTH)
+        left = "-" * int(LENGTH - (percent * LENGTH))
+        timeline = f"[{complete}>{left}]"
+
+        position = datetime.timedelta(seconds=position)
+        length = datetime.timedelta(seconds=length)
+        position = strfdelta(position, '{%H}:{%M}:{%S}')
+        length = strfdelta(length, '{%H}:{%M}:{%S}')
+        return f"{position} `{timeline}` {length}"
+
+    async def getNowPlayingEmbed(self, event=None):
+        node = await self.bot.lavalink.get_guild_node(self.gid)
+        requester = self.bot.cache.get_member(self.gid, node.now_playing.requester)
+
+        embed = hikari.embeds.Embed(
+            title=f"{node.now_playing.track.info.title}",
+            url=node.now_playing.track.info.uri
+        )
+        embed.add_field(name="Author", value=node.now_playing.track.info.author, inline=True)
+        embed.add_field(name="Requested by", value=requester.username, inline=True)
+
+        embed.add_field(name="Volume", value=f"{self._volume}%", inline=True)
+
+        if event is not None:
+            embed.description = self.trackTimeline(event.state_position / 1000, node.now_playing.track.info.length / 1000)
+
+        if "youtube.com" in node.now_playing.track.info.uri:
+            url = urllib.parse.urlparse(node.now_playing.track.info.uri)
+            query = urllib.parse.parse_qs(url.query)
+            embed.set_image(f"https://img.youtube.com/vi/{query['v'][0]}/0.jpg")
+        return embed
+
+    async def interactionListener(self):
+        async with self.bot.stream(hikari.InteractionCreateEvent, None).filter(
+            lambda event: (
+                isinstance(event.interaction, hikari.ComponentInteraction)
+                and event.interaction.message.id == self.now_playing_message.id
+            )
+        ) as stream:
+            async for event in stream:
+                if event.interaction.custom_id == "⏮️":
+                    print("previous")
+                elif event.interaction.custom_id == "⏸️":
+                    await self.pause()
+                elif event.interaction.custom_id == "⏹️":
+                    await self.disconnect()
+                elif event.interaction.custom_id == "⏭️":
+                    print("skip")
+                elif event.interaction.custom_id == "🔉":
+                    await self.volume(self._volume - 5)
+                elif event.interaction.custom_id == "🔊":
+                    await self.volume(self._volume + 5)
+
+    async def delete(self):
+        await self.bot.koe.delSession(self)
+
+    async def connect(self):
+        await self.bot.update_voice_state(self.gid, self.vid)
+        info = await self.bot.lavalink.wait_for_full_connection_info_insert(self.gid)
+        await self.bot.lavalink.create_session(info)
+        await self.bot.koe.addSession(self)
+        await self.bot.rest.create_message(self.cid, "Connected.")
+
+    async def disconnect(self):
+        await self.bot.lavalink.destroy(self.gid)
+        await self.bot.update_voice_state(self.gid, None)
+        await self.bot.lavalink.wait_for_connection_info_remove(self.gid)
+        await self.bot.lavalink.remove_guild_node(self.gid)
+        await self.bot.lavalink.remove_guild_from_loops(self.gid)
+        await self.delete()
+        await self.bot.rest.create_message(self.cid, "Disconnected.")
+
+    async def play(self, uid, query):
+        track = await self.bot.lavalink.auto_search_tracks(query)
+        track = track.tracks[0]
+        await self.bot.lavalink.play(self.gid, track).requester(uid).queue()
+
+    async def pause(self, setting="toggle"):
+        if setting == "toggle":
+            node = await self.bot.lavalink.get_guild_node(self.gid)
+            if node.is_paused:
+                setting = False
+            else:
+                setting = True
+        await self.bot.lavalink.set_pause(self.gid, setting)
+
+    async def volume(self, setting):
+        self._volume = setting
+        await self.bot.lavalink.volume(self.gid, setting)
+
+
+class RemoteKoeSession(KoeBaseSession):
+    """
+    Abstraction of a remote Koe session.
+
+    Remote sessions are those NOT controlled by the bot in which the session is
+    stored and controlled. Remote sessions should *in theory* only be able to
+    be possessed by the master bot.
+    """
+    def __init__(self, bot, endpoint, gid, vid, cid):
+        self.bot = bot
+        self.endpoint = endpoint
+        super().__init__(gid, vid, cid)
+
+    def serialize(self):
+        return {'gid': self.gid, 'vid': self.vid, 'cid': self.cid}
 
     async def post(self, api_path, data):
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{self.endpoint}{api_path}", json=data, headers={'Content-Type': 'application/json'}) as response:
-                return await response.json()
+                resp = await response.json()
+        if 'response' not in resp:
+            raise BadResponse(resp)
+        return resp
 
-    async def connect(self, koe):
-        data = {'gid': self.gid, 'vid': self.vid}
-        data = await self.post("/api/voice/connect", data)
-        if data['response'] == 'success':
-            await koe.addSession(self)
-        else:
-            raise BadResponse(data)
+    async def delete(self):
+        data = self.serialize()
+        await self.post("/api/session/delete", data)
 
-    async def disconnect(self, koe):
-        data = {'gid': self.gid}
-        data = await self.post("/api/voice/disconnect", data)
-        if data['response'] == 'success':
-            await koe.delSession(self)
-        else:
-            raise BadResponse(data)
+    async def connect(self):
+        data = self.serialize()
+        await self.post("/api/voice/connect", self.serialize())
+        await self.bot.koe.addSession(self)
 
-    async def play(self, koe, uid, query):
-        data = {'gid': self.gid, 'uid': uid, 'query': query}
-        return await self.post("/api/voice/play", data)
+    async def disconnect(self):
+        await self.post("/api/voice/disconnect", self.serialize())
+        await self.bot.koe.delSession(self)
+
+    async def play(self, uid, query):
+        data = self.serialize()
+        data['uid'] = uid
+        data['query'] = query
+        await self.post("/api/voice/play", data)
+
+    async def pause(self, setting="toggle"):
+        data = self.serialize()
+        data['setting'] = setting
+        await self.post("/api/voice/pause", data)
+
+    async def volume(self, setting):
+        data = self.serialize()
+        data['setting'] = setting
+        await self.post("/api/voice/volume", data)
 
 
 class Koe:
+    """
+    Create a Koe instance.
+
+    Koe effectively acts as a session manager for a given bot. Koe is
+    responsible for adding, deleteing, and creating sessions. Each bot
+    has its own Koe instance, but only the master bot has a Koe instance
+    which can contain RemoteKoeSessions. In this way, the master bot
+    effectively acts as a proxy for LocalKoeSessions in other Koe instances
+    in the subordinate bots.
+    """
     def __init__(self, bot):
         self.bot = bot
         self._sessions = {}
@@ -51,9 +201,9 @@ class Koe:
 
     async def addSession(self, session):
         async with self._lock:
-            for gid, s in self._sessions.items():
-                if session.gid == gid:
-                    raise AlreadyConnected(session.gid, s.vid)
+            for vid, s in self._sessions.items():
+                if session.vid == vid:
+                    raise AlreadyConnected(session.vid, s.vid)
 
             self._sessions[session.vid] = session
 
@@ -70,22 +220,32 @@ class Koe:
                 return vs[0].channel_id
         return None
 
-    async def fromCTX(self, ctx, connect=True, must_exist=False):
-        return await self.fromComponents(ctx.guild_id, ctx.author.id, connect=connect, must_exist=must_exist)
+    async def fromCTX(self, ctx, connect=False, must_exist=False):
+        vid = await self.vidFromUser(ctx.author.id)
+        return await self.fromComponents(ctx.guild_id, ctx.channel_id, vid, connect=connect, must_exist=must_exist)
 
-    async def fromComponents(self, gid, uid, connect=True, must_exist=False):
-        vid = await self.vidFromUser(uid)
+    async def fromGuild(self, gid):
+        async with self._lock:
+            for vid, session in self._sessions.items():
+                if session.gid == gid:
+                    return session
+
+    async def fromComponents(self, gid=None, cid=None, vid=None, connect=False, must_exist=False):
         async with self._lock:
             try:
                 return self._sessions[vid]
             except KeyError:
                 if must_exist is True:
                     raise NoExistingSession(vid)
-                endpoint = await self.getNewEndpoint(gid)
-                session = KoeSession(endpoint, gid, vid, uid)
+                endpoint = await self.getOpenEndpoint(gid)
+                if endpoint == self.endpoint:
+                    session = LocalKoeSession(self.bot, gid, vid, cid)
+                else:
+                    session = RemoteKoeSession(self.bot, endpoint, gid, vid, cid)
 
         if connect is True:
             await session.connect(self)
+            await self.addSession(session)
         return session
 
     async def voiceView(self):
@@ -95,6 +255,10 @@ class Koe:
                 if uid == self.bot.get_me().id:                              # to be replaced by lavalink playing status
                     states.append({'gid': int(gid), 'vid': state.channel_id, 'status': 'in use'})
         return states
+
+    @property
+    def endpoint(self):
+        return f"http://{conf.dash.host}:{self.bot.api_port}"
 
     @property
     def api_ports(self):
@@ -117,7 +281,7 @@ class Koe:
                 resp[endpoint.split(":")[-1]] = await response.json()
         return resp
 
-    async def getNewEndpoint(self, gid):
+    async def getOpenEndpoint(self, gid):
         for endpoint in self.api_endpoints:
             async with self.webcon.get(f"{endpoint}/api/voice/states", headers={'Content-Type': 'application/json'}) as response:
                 data = await response.json()
@@ -135,11 +299,39 @@ class Koe:
 
 
 class KoeEventHandler:
+    def __init__(self, bot, *args, **kwargs):
+        self.bot = bot
 
-    async def track_start(self, _lava_client, event):
+    async def player_update(self, lavalink, event):
+        session = await self.bot.koe.fromGuild(event.guild_id)
+        if session.now_playing_message is not None:
+            embed = await session.getNowPlayingEmbed(event=event)
+            await session.now_playing_message.edit(embed)
+
+    async def track_start(self, lavalink, event):
+        session = await self.bot.koe.fromGuild(event.guild_id)
+        session.now_playing_message = None
+        embed = await session.getNowPlayingEmbed()
+
+        row1 = self.bot.rest.build_action_row()
+        row1.add_button(hikari.ButtonStyle.SECONDARY, "⏮️").set_label("⏮️").add_to_container()
+        row1.add_button(hikari.ButtonStyle.DANGER, "⏹️").set_label("⏹️").add_to_container()
+        row1.add_button(hikari.ButtonStyle.SECONDARY, "⏸️").set_label("⏸️").add_to_container()
+        row1.add_button(hikari.ButtonStyle.SECONDARY, "⏭️").set_label("⏭️").add_to_container()
+        row2 = self.bot.rest.build_action_row()
+        row2.add_button(hikari.ButtonStyle.SECONDARY, "🔉").set_label("🔉").add_to_container()
+        row2.add_button(hikari.ButtonStyle.SECONDARY, "🔊").set_label("🔊").add_to_container()
+
+        session.now_playing_message = await self.bot.rest.create_message(session.cid, embed, components=[row1, row2])
+        loop = hikari.internal.aio.get_or_make_loop()
+        session.interactionListenerTask = loop.create_task(session.interactionListener())
+
         conf.logger.debug(f"Track started in guild: {event.guild_id}.")
 
     async def track_finish(self, lavalink, event):
+        session = await self.bot.koe.fromGuild(event.guild_id)
+        await session.now_playing_message.edit(components=[])
+        session.interactionListenerTask.cancel()
         conf.logger.debug(f"Track finished in guild: {event.guild_id}.")
 
     async def track_exception(self, lavalink, event):
