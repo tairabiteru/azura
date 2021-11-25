@@ -1,5 +1,6 @@
 """Extended command functions which assist in dealing with slash command context."""
 
+import asyncio
 import hikari
 import random
 
@@ -29,6 +30,26 @@ def getMemberOrAuthor(ctx):
         return ctx.member
     else:
         return ctx.resolved.users[int(ctx.options.member)]
+
+
+async def create_timeout_message(bot, cid, message, timeout):
+    async def delete_after(message, timeout):
+        await asyncio.sleep(timeout)
+        await message.delete()
+
+    message = await bot.rest.create_message(cid, message)
+    loop = hikari.internal.aio.get_or_make_loop()
+    loop.create_task(delete_after(message, timeout))
+
+
+async def respond_with_timeout(ctx, message, timeout):
+    async def delete_after(ctx, timeout):
+        await asyncio.sleep(timeout)
+        await ctx.delete_response()
+
+    await ctx.respond(message)
+    loop = hikari.internal.aio.get_or_make_loop()
+    loop.create_task(delete_after(ctx, timeout))
 
 
 class ChainedMessage:
@@ -130,7 +151,7 @@ class Validation:
             async for event in stream:
                 if event.interaction.custom_id != valid_symbol:
                     raise ValidationError("Incorrect symbol selected, operation cancelled.")
-                return
+                return True
 
         raise ValidationError("Timeout has expired, operation cancelled.")
 

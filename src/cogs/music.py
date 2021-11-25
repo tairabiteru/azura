@@ -8,6 +8,7 @@ from core.commands import (
 )
 from core.conf import conf
 from ext.koe.exceptions import NoExistingSession
+from ext.ctx import respond_with_timeout
 
 import aiohttp
 import lavasnek_rs
@@ -20,7 +21,7 @@ class Connect(SlashCommand):
     enabled_guilds = [294260795465007105, 320759902240899073]
 
     async def callback(self, ctx):
-        await ctx.respond("Acknowledged.")
+        await respond_with_timeout(ctx, "Acknowledged.", 5)
         session = await ctx.bot.koe.fromCTX(ctx)
         await session.connect()
 
@@ -31,7 +32,7 @@ class Disconnect(SlashCommand):
 
     async def callback(self, ctx):
         try:
-            await ctx.respond("Acknowledged.")
+            await respond_with_timeout(ctx, "Acknowledged.", 5)
             session = await ctx.bot.koe.fromCTX(ctx, must_exist=True)
             await session.disconnect()
         except NoExistingSession as e:
@@ -46,7 +47,7 @@ class Play(SlashCommand):
 
     async def callback(self, ctx):
         try:
-            await ctx.respond("Acknowledged.")
+            await respond_with_timeout(ctx, "Acknowledged.", 5)
             session = await ctx.bot.koe.fromCTX(ctx, must_exist=True)
             await session.play(ctx.author.id, ctx.options.song)
         except NoExistingSession:
@@ -66,7 +67,7 @@ class Pause(SlashCommand):
 
     async def callback(self, ctx):
         try:
-            await ctx.respond("Acknowledged.")
+            await respond_with_timeout(ctx, "Acknowledged.", 5)
             session = await ctx.bot.koe.fromCTX(ctx, must_exist=True)
             await session.pause()
         except NoExistingSession as e:
@@ -81,7 +82,7 @@ class Volume(SlashCommand):
 
     async def callback(self, ctx):
         try:
-            await ctx.respond("Acknowledged.")
+            await respond_with_timeout(ctx, "Acknowledged.", 5)
             session = await ctx.bot.koe.fromCTX(ctx, must_exist=True)
             await session.volume(ctx.options.volume)
         except NoExistingSession as e:

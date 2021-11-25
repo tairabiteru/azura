@@ -17,13 +17,14 @@ import lightbulb
 import os
 import traceback
 
+import aiohttp
 import asyncio
 import socket
 import sys
 import os
 
 
-class Subordinate(lightbulb.Bot):
+class Child(lightbulb.Bot):
     def __init__(self, name, port, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -37,6 +38,16 @@ class Subordinate(lightbulb.Bot):
         self.subscribe(hikari.ShardReadyEvent, self.on_ready)
         self.subscribe(hikari.VoiceStateUpdateEvent, self.on_voice_state_update)
         self.subscribe(hikari.VoiceServerUpdateEvent, self.on_voice_server_update)
+
+    async def cycleState(self, kill=False):
+        call = "Kill" if kill is True else "Reinit"
+        conf.logger.warning(f"{call} call made. Shutting down...")
+        # allow final transmission
+        await asyncio.sleep(1)
+        if kill is True:
+            lockfile = f"{self.name}.lock"
+            os.system(f"touch {os.path.join(conf.rootDir, lockfile)}")
+        await self.close()
 
     async def on_ready(self, event) -> None:
         self.last_api_connection = localnow()
@@ -71,3 +82,37 @@ class Subordinate(lightbulb.Bot):
         await self.lavalink.raw_handle_event_voice_server_update(
             event.guild_id, event.endpoint, event.token
         )
+
+
+class ChildConnector:
+    def __init__(self, name, port):
+        self.name = name
+        self.port = port
+
+    @property
+    def endpoint(self):
+        return f"http://{conf.dash.host}:{self.port}"
+
+    def serialize(self):
+        return {'gid': self.gid, 'vid': self.vid, 'cid': self.cid}
+
+    def start(self):
+        if int(os.system(f"screen -list | awk '{{print $1}}' | grep -q {self.name}$")) == 0:
+            conf.logger.info(f"{self.name} is already running.")
+            return 1
+        else:
+            conf.logger.info(f"Starting {self.name}.")
+            path = os.path.join(conf.binDir, f"{self.name}.sh")
+            os.system(f"screen -S {self.name} -d -m {path}")
+            return 0
+
+    async def post(self, api_path, data):
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{self.endpoint}{api_path}", json=data, headers={'Content-Type': 'application/json'}) as response:
+                return await response.json()
+
+    async def reinit(self):
+        await self.post("/api/bot/reinit", {})
+
+    async def kill(self):
+        await self.post("/api/bot/kill", {})

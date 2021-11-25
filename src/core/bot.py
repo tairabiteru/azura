@@ -7,6 +7,7 @@ global subroutine registry.
 
 from core.conf import conf, initLogger
 from core.commands import SlashCommandCheckFailure
+from core.child import ChildConnector
 from core.help import TopicContainer
 from ext.koe.koe import Koe, KoeEventHandler
 # from core.subroutines import subroutine
@@ -39,12 +40,12 @@ class Master(lightbulb.Bot):
         conf.logger.debug(logoutput)
         self.version = str(revisioning.current)
         self.subroutines = []
-        self.subordinates = {}
         self.lavalink = None
         self.api_port = conf.dash.port
         self.koe = Koe(self)
         self.dash = None
         self.logger = initLogger("master")
+        self.children = []
 
         self.last_initalization = localnow()
 
@@ -76,6 +77,20 @@ class Master(lightbulb.Bot):
             except AttributeError:
                 pass
 
+    def initChildren(self):
+        for i in range(0, len(conf.child_tokens)):
+            name = f"{conf.name}Child-{i}"
+            child = ChildConnector(name, conf.dash.port + 1 + i)
+            self.children.append(child)
+            conf.buildBash(name=name, mainPath=f"{conf.childPath} {i}", bashPath=os.path.join(conf.binDir, f"{name}.sh"))
+            child.start()
+
+    async def cycleState(self, kill=False):
+        if kill is True:
+            lockfile = f"{conf.name}.lock"
+            os.system(f"touch {os.path.join(conf.rootDir, lockfile)}")
+        await self.close()
+
     def run(self, *args, **kwargs):
         return super().run(*args, **kwargs)
 
@@ -83,7 +98,10 @@ class Master(lightbulb.Bot):
 hikari_loglevel = conf.hikari_loglevel if conf.hikari_loglevel else None
 bot = Master(token=conf.token, prefix=conf.prefix, logs=hikari_loglevel, intents=hikari.Intents.ALL)
 
+bot.initChildren()
+
 conf.logger.info(f"{conf.name} will now initialize into version {bot.version}.")
+bot.load_extension("cogs.admin")
 bot.load_extension("cogs.music")
 conf.logger.info("Extension loading complete.")
 

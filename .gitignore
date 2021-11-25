@@ -6,3 +6,4 @@
 src/azura.sh
 logs/*
 azura.sh
+*.sh

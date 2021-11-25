@@ -175,3 +175,34 @@ def isAlphabet(s):
         if char not in string.ascii_uppercase and char not in string.ascii_lowercase:
             return False
     return True
+
+
+def reduceByteUnit(numbytes):
+    units = ["B", "KB", "MB", "GB", "TB"]
+    iterations = 0
+    while numbytes >= 1024:
+        numbytes /= 1024.0
+        iterations += 1
+    return f"{round(numbytes, 2)} {units[iterations]}"
+
+
+def dirSize(path):
+    total = 0
+    try:
+        for root, dirs, files in os.walk(path):
+            for file in files:
+                file = os.path.join(root, file)
+                if not os.path.islink(file):
+                    total += os.path.getsize(file)
+    except FileNotFoundError:
+        return 0
+    return total
+
+
+async def getPublicIPAddr():
+    async with aiohttp.ClientSession() as session:
+        async with session.get("https://api.ipify.org?format=json") as response:
+            if response.status != 200:
+                raise ValueError(f"Unable to get public IP address. Server returned status code {response.status}.")
+            json = await response.json()
+            return json['ip']

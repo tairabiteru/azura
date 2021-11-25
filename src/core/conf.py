@@ -66,7 +66,7 @@ BASE = {
     "ownerID": 0,
     "token": "",
     "secret": "",
-    "subordinate_tokens": [],
+    "child_tokens": [],
     "dash": {
         "enabled": False,
         "key": str(fernet.Fernet.generate_key()),
@@ -156,8 +156,9 @@ class Conf:
         self._conf["rootDir"] = root
         self._conf["logDir"] = ensure(os.path.join(root, "logs/"))
         self._conf["bashPath"] = os.path.join(root, self._conf["name"].lower() + ".sh")
-        self._conf["mainPath"] = os.path.join(root, "main.py")
-        self._conf["binDir"] = os.path.join(root, "bin/")
+        self._conf["mainPath"] = os.path.join(root, "src/main.py")
+        self._conf["childPath"] = os.path.join(root, "src/child.py")
+        self._conf["binDir"] = ensure(os.path.join(root, "bin/"))
         self._conf["storageDir"] = ensure(os.path.join(root, "storage/"))
 
         if self._conf["tempDir"] == "":
@@ -178,25 +179,31 @@ class Conf:
         self._conf["orm"]["serverDir"] = ensure(os.path.join(ormroot, "servers/"))
         self._conf["orm"]["botDir"] = ensure(os.path.join(ormroot, "bot/"))
 
-    def buildBash(self):
+    def buildBash(self, name=None, mainPath="", bashPath=""):
         """
         Build the bash file the bot is executed with.
 
         We check for the presence of the file first, and if it's not present,
         we construct it manually.
         """
-        if not os.path.isfile(self.bashPath):
-            with open(self.bashPath, "w") as bashFile:
+        if not mainPath:
+            mainPath = self.mainPath
+        if not bashPath:
+            bashPath = self.bashPath
+
+        if not os.path.isfile(bashPath):
+            with open(bashPath, "w") as bashFile:
                 bashFile.write("#!/bin/bash\n")
                 bashFile.write(f"cd {self.rootDir}\n")
 
-                bashFile.write(f"LOCKFILE={os.path.join(self.rootDir, 'lock')}\n")
+                lockfile = f"{self.name}.lock" if name is None else f"{name}.lock"
+                bashFile.write(f"LOCKFILE={os.path.join(self.rootDir, lockfile)}\n")
                 bashFile.write('if test -f "$LOCKFILE"; then\n    rm $LOCKFILE\nfi\n\n')
-                bashFile.write(f"while true; do\n    python3 {self.mainPath}\n")
+                bashFile.write(f"while true; do\n    python3.9 {mainPath}\n")
                 bashFile.write(
                     "    if test -f $LOCKFILE; then\n        break\n    fi\ndone"
                 )
-            os.system(f"chmod +x {self.bashPath}")
+            os.system(f"chmod +x {bashPath}")
 
     def validate(self):
         """Validate key settings prior to initialization."""
