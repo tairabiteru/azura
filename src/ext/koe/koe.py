@@ -1,7 +1,8 @@
 from core.conf import conf
-from ext.utils import strfdelta
+from ext.utils import strfdelta, aio_get
 from ext.ctx import create_timeout_message
-from ext.koe.exceptions import AlreadyConnected, NoVoiceChannel, NoExistingSession, NoAvailableEndpoint, BadResponse
+from ext.koe.exceptions import AlreadyConnected, NoExistingSession, NoAvailableEndpoint, BadResponse
+from ext.koe.queue import KoeQueue, PositionError
 
 import aiohttp
 import asyncio
@@ -16,6 +17,14 @@ class KoeBaseSession:
         self.vid = vid
         self.cid = cid
 
+    @staticmethod
+    async def decode_track(track):
+        dest = f"http://{conf.audio.lavalink_addr}:{conf.audio.lavalink_port}/decodetrack?track={track}"
+        headers = {
+            'Authorization': conf.audio.lavalink_pass
+        }
+        return await aio_get(dest, headers=headers, fmt="json")
+
 
 class LocalKoeSession(KoeBaseSession):
     """
@@ -28,8 +37,10 @@ class LocalKoeSession(KoeBaseSession):
     def __init__(self, bot, gid, vid, cid):
         self.bot = bot
         self.now_playing_message = None
+        self.lock = asyncio.Lock()
         self.interactionListenerTask = None
         self._volume = 100
+        self.queue = KoeQueue()
         super().__init__(gid, vid, cid)
 
     def trackTimeline(self, position, length):
@@ -69,11 +80,13 @@ class LocalKoeSession(KoeBaseSession):
 
     async def getActionRow(self, is_paused):
         row = self.bot.rest.build_action_row()
-        row.add_button(hikari.ButtonStyle.SECONDARY, "⏮️").set_label("⏮️").add_to_container()
+        if not (await self.queue.isStart()):
+            row.add_button(hikari.ButtonStyle.SECONDARY, "⏮️").set_label("⏮️").add_to_container()
         row.add_button(hikari.ButtonStyle.DANGER, "⏹️").set_label("⏹️").add_to_container()
         pbutton = "▶️" if is_paused else "⏸️"
         row.add_button(hikari.ButtonStyle.SECONDARY, pbutton).set_label(pbutton).add_to_container()
-        row.add_button(hikari.ButtonStyle.SECONDARY, "⏭️").set_label("⏭️").add_to_container()
+        if not (await self.queue.isEnd()):
+            row.add_button(hikari.ButtonStyle.SECONDARY, "⏭️").set_label("⏭️").add_to_container()
         return row
 
     async def interactionListener(self):
@@ -86,7 +99,7 @@ class LocalKoeSession(KoeBaseSession):
             ) as stream:
                 async for event in stream:
                     if event.interaction.custom_id == "⏮️":
-                        print("previous")
+                        await self.move_by(-1)
                     elif event.interaction.custom_id in ["⏸️", "▶️"]:
                         setting = await self.pause()
                         row = await self.getActionRow(setting)
@@ -94,7 +107,7 @@ class LocalKoeSession(KoeBaseSession):
                     elif event.interaction.custom_id == "⏹️":
                         await self.disconnect()
                     elif event.interaction.custom_id == "⏭️":
-                        print("skip")
+                        await self.move_by(1)
                     elif event.interaction.custom_id == "🔉":
                         await self.volume(self._volume - 5)
                     elif event.interaction.custom_id == "🔊":
@@ -102,11 +115,17 @@ class LocalKoeSession(KoeBaseSession):
         except Exception as e:
             print(str(e))
 
+    async def overwriteNode(self):
+        node = await self.bot.lavalink.get_guild_node(self.gid)
+        node.queue = await self.queue.currentTracks()
+        await self.bot.lavalink.set_guild_node(self.gid, node)
+
     async def delete(self):
         await self.bot.koe.delSession(self)
 
     async def stop(self):
-        await self.now_playing_message.edit(components=[])
+        async with self.lock:
+            await self.now_playing_message.edit(components=[])
 
     async def connect(self):
         await self.bot.update_voice_state(self.gid, self.vid)
@@ -125,16 +144,19 @@ class LocalKoeSession(KoeBaseSession):
         await self.bot.lavalink.remove_guild_from_loops(self.gid)
         await create_timeout_message(self.bot, self.cid, "Disconnected.", 5)
 
-        if self.bot.name != conf.name:
-            data = {'vid': self.vid}
-            async with aiohttp.ClientSession() as session:
-                async with session.post(f"http://{conf.dash.host}:{conf.dash.port}/api/session/delete", json=data, headers={'Content-Type': 'application/json'}) as response:
-                    resp = await response.json()
+        # if self.bot.name != conf.name:
+        #     data = {'vid': self.vid}
+        #     async with aiohttp.ClientSession() as session:
+        #         async with session.post(f"http://{conf.dash.host}:{conf.dash.port}/api/session/delete", json=data, headers={'Content-Type': 'application/json'}) as response:
+        #             resp = await response.json()
 
     async def play(self, uid, query):
         track = await self.bot.lavalink.auto_search_tracks(query)
         track = track.tracks[0]
-        await self.bot.lavalink.play(self.gid, track).requester(uid).queue()
+        track = self.bot.lavalink.play(self.gid, track).requester(uid).to_track_queue()
+        await self.bot.lavalink.play(self.gid, track.track).requester(uid).queue()
+        await self.queue.append(track)
+        await self.overwriteNode()
 
     async def pause(self, setting="toggle"):
         if setting == "toggle":
@@ -149,6 +171,23 @@ class LocalKoeSession(KoeBaseSession):
     async def volume(self, setting):
         self._volume = setting
         await self.bot.lavalink.volume(self.gid, setting)
+
+    async def move_to(self, position):
+        await self.queue.set_pos(position)
+        await self.bot.lavalink.stop(self.gid)
+        await self.overwriteNode()
+        await self.bot.lavalink.skip(self.gid)
+
+    async def move_by(self, positions, stop=False):
+        if stop is True:
+            await self.bot.lavalink.stop(self.gid)
+
+        await self.queue.move(positions)
+
+        if stop is False:
+            await self.bot.lavalink.stop(self.gid)
+        await self.overwriteNode()
+        await self.bot.lavalink.skip(self.gid)
 
 
 class ChildKoeSession(LocalKoeSession):
@@ -208,14 +247,14 @@ class RemoteKoeSession(KoeBaseSession):
             raise BadResponse(resp)
         elif resp['response'] == "NoExistingSession":
             raise NoExistingSession(data['vid'])
+        elif resp['response'] == "PositionError":
+            raise PositionError(resp['message'])
         return resp
 
     async def delete(self):
-        data = self.serialize()
-        await self.post("/api/session/delete", data)
+        await self.post("/api/session/delete", self.serialize())
 
     async def connect(self):
-        data = self.serialize()
         await self.post("/api/voice/connect", self.serialize())
         await self.bot.koe.addSession(self)
 
@@ -241,6 +280,17 @@ class RemoteKoeSession(KoeBaseSession):
         data = self.serialize()
         data['setting'] = setting
         await self.post("/api/voice/volume", data)
+
+    async def move_to(self, position):
+        data = self.serialize()
+        data['position'] = position
+        await self.post("/api/voice/move/to", data)
+
+    async def move_by(self, positions, stop=False):
+        data = self.serialize()
+        data['positions'] = positions
+        data['stop'] = stop
+        await self.post("/api/voice/move/by", data)
 
 
 class Koe:
@@ -368,31 +418,48 @@ class KoeEventHandler:
 
     async def player_update(self, lavalink, event):
         session = await self.bot.koe.fromGuild(event.guild_id)
-        if session.now_playing_message is not None:
+
+        async with session.lock:
             embed = await session.getNowPlayingEmbed(event=event)
-            await session.now_playing_message.edit(embed)
+            row = await session.getActionRow(is_paused=False)
+            await session.now_playing_message.edit(embed, components=[row])
 
     async def track_start(self, lavalink, event):
+        node = await lavalink.get_guild_node(event.guild_id)
         session = await self.bot.koe.fromGuild(event.guild_id)
-        session.now_playing_message = None
-        embed = await session.getNowPlayingEmbed()
 
-        row1 = self.bot.rest.build_action_row()
-        row1.add_button(hikari.ButtonStyle.SECONDARY, "⏮️").set_label("⏮️").add_to_container()
-        row1.add_button(hikari.ButtonStyle.DANGER, "⏹️").set_label("⏹️").add_to_container()
-        row1.add_button(hikari.ButtonStyle.SECONDARY, "⏸️").set_label("⏸️").add_to_container()
-        row1.add_button(hikari.ButtonStyle.SECONDARY, "⏭️").set_label("⏭️").add_to_container()
+        if node.now_playing is not None:
 
-        session.now_playing_message = await self.bot.rest.create_message(session.cid, embed, components=[row1])
-        loop = hikari.internal.aio.get_or_make_loop()
-        session.interactionListenerTask = loop.create_task(session.interactionListener())
+            async with session.lock:
+                if session.now_playing_message is not None:
+                    await session.now_playing_message.edit(components=[])
+                embed = await session.getNowPlayingEmbed()
+
+                row1 = await session.getActionRow(is_paused=False)
+
+                session.now_playing_message = await self.bot.rest.create_message(session.cid, embed, components=[row1])
+                loop = hikari.internal.aio.get_or_make_loop()
+                session.interactionListenerTask = loop.create_task(session.interactionListener())
 
         conf.logger.debug(f"Track started in guild: {event.guild_id}.")
 
     async def track_finish(self, lavalink, event):
         session = await self.bot.koe.fromGuild(event.guild_id)
-        if session:
-            await session.stop()
+        if session is not None:
+
+            # Repeat 1
+            repeat_1 = False
+            repeat_all = True
+            print(event.reason)
+            if not repeat_1 and event.reason not in ["REPLACED", "STOPPED"]:
+                try:
+                    await session.queue.move(1)
+                except PositionError:
+                    if repeat_all:
+                        await session.queue.set_pos(0)
+                    else:
+                        raise
+            await session.overwriteNode()
         conf.logger.debug(f"Track finished in guild: {event.guild_id}.")
 
     async def track_exception(self, lavalink, event):

@@ -6,10 +6,10 @@ as well as the bot's maintainer.
 """
 
 from core.conf import conf
-from core.commands import SlashCommand, SlashCommandGroup, SlashSubCommand, SlashSubGroup
+from core.commands import SlashCommandGroup, SlashSubCommand
 from core.commands import permission_exists, load_slash_commands, unload_slash_commands
-from ext.utils import lint, localnow, strfdelta, reduceByteUnit, dirSize, getPublicIPAddr
-from ext.ctx import Validation
+from ext.utils import lint, localnow, strfdelta, reduceByteUnit, dirSize, getPublicIPAddr, resolve
+from ext.ctx import Validation, getEphemeralOrNone
 from orm.revisioning import Revisioning
 from orm.member import Member
 from orm.server import Server as ServerORM
@@ -80,7 +80,7 @@ class Kill(SlashSubCommand):
 
                 for child in ctx.bot.children:
                     if child.name == ctx.options.target or ctx.options.target == "ALL":
-                        t = await child.kill()
+                        await child.kill()
                 if ctx.options.target == conf.name or ctx.options.target == "ALL":
                     await ctx.bot.cycleState(kill=True)
             else:

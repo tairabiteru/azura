@@ -13,22 +13,14 @@ from ext.koe.koe import Koe, KoeEventHandler
 # from core.subroutines import subroutine
 from dash.core import Dash
 from orm.revisioning import Revisioning
-from orm.member import Member
-from orm.server import Server
 from ext.utils import localnow
 
-import colorlog
 import hikari
 import json
 import lavasnek_rs
 import lightbulb
 import os
 import traceback
-
-import asyncio
-import socket
-import sys
-import os
 
 
 class Master(lightbulb.Bot):

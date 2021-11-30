@@ -1,12 +1,9 @@
-from core.conf import conf
 from ext.koe.koe import RemoteKoeSession, ChildKoeSession
+from ext.koe.queue import PositionError
 from ext.koe.exceptions import NoExistingSession
-from orm.revisioning import Revisioning
 
-import aiohttp
-import hikari
+
 import sanic
-from sanic_jinja2 import SanicJinja2 as jinja
 
 
 routes = sanic.Blueprint(__name__)
@@ -100,11 +97,47 @@ async def voice_pause(request):
 
 # Children only
 @routes.post("/api/voice/volume")
-async def voice_pause(request):
+async def voice_volume(request):
     vid = request.json['vid']
     setting = request.json['setting']
     session = await request.app.ctx.bot.koe.fromComponents(vid=vid, must_exist=True)
     await session.volume(setting)
+
+    return sanic.response.json({'response': 'success'})
+
+
+# Children only
+@routes.post("/api/voice/move/to")
+async def voice_move_to(request):
+    vid = request.json['vid']
+    position = request.json['position']
+
+    try:
+        session = await request.app.ctx.bot.koe.fromComponents(vid=vid, must_exist=True)
+        await session.move_to(position)
+    except PositionError as e:
+        return sanic.response.json({
+            'response': 'PositionError',
+            'message': str(e)
+        })
+
+    return sanic.response.json({'response': 'success'})
+
+
+# Children only
+@routes.post("/api/voice/move/by")
+async def voice_move_by(request):
+    vid = request.json['vid']
+    positions = request.json['positions']
+    stop = request.json['stop']
+    try:
+        session = await request.app.ctx.bot.koe.fromComponents(vid=vid, must_exist=True)
+        await session.move_by(positions, stop=stop)
+    except PositionError as e:
+        return sanic.response.json({
+            'response': 'PositionError',
+            'message': str(e)
+        })
 
     return sanic.response.json({'response': 'success'})
 

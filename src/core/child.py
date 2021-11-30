@@ -1,26 +1,13 @@
-from core.conf import conf, initLogger
-from core.commands import SlashCommandCheckFailure
-from core.help import TopicContainer
-# from core.subroutines import subroutine
+from core.conf import conf
 from dash.core import Dash
-from orm.revisioning import Revisioning
-from orm.member import Member
-from orm.server import Server
 from ext.utils import localnow
 from ext.koe.koe import Koe, KoeEventHandler
 
-import colorlog
-import hikari
-import json
-import lavasnek_rs
-import lightbulb
-import os
-import traceback
-
 import aiohttp
 import asyncio
-import socket
-import sys
+import hikari
+import lavasnek_rs
+import lightbulb
 import os
 
 

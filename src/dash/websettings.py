@@ -1,7 +1,4 @@
-from core.conf import conf
-from ext.tts import TTSEngine, GoogleTTS
 from ext.location import USLocation
-from orm.clips import Clips
 from orm.server import Server
 
 import abc
