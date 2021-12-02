@@ -8,10 +8,12 @@ from core.commands import (
 from core.conf import conf
 from ext.koe.exceptions import NoExistingSession
 from ext.koe.queue import PositionError
+from ext.koe.objects import Repeat
 from ext.ctx import respond_with_timeout
 
 import lavasnek_rs
 from lightbulb.slash_commands import Option
+import os
 import typing
 
 
@@ -60,6 +62,27 @@ class Play(SlashCommand):
             await session.play(ctx.author.id, ctx.options.song)
 
 
+class EnqueueFiles(SlashCommand):
+    description: str = "Enqueue files"
+    enabled_guilds = [294260795465007105, 320759902240899073]
+
+    async def callback(self, ctx):
+        files = list([os.path.join("/home/taira/music", file) for file in os.listdir("/home/taira/music")])
+        try:
+            await respond_with_timeout(ctx, "Acknowledged.", 5)
+            session = await ctx.bot.koe.fromCTX(ctx, must_exist=True)
+            await session.enqueueFilePlaylist(files)
+        except NoExistingSession:
+            session = await ctx.bot.koe.fromCTX(ctx)
+            await session.connect()
+            await session.enqueueFilePlaylist(files)
+        except lavasnek_rs.NoSessionPresent:
+            await session.delete()
+            session = await ctx.bot.koe.fromCTX(ctx)
+            await session.connect()
+            await session.enqueueFilePlaylist(files)
+
+
 class Pause(SlashCommand):
     description: str = "Pause or unpause playback."
     enabled_guilds = [294260795465007105, 320759902240899073]
@@ -86,6 +109,41 @@ class Volume(SlashCommand):
             await session.volume(ctx.options.volume)
         except NoExistingSession as e:
             return await ctx.edit_response(str(e))
+
+
+class Queue(SlashCommand):
+    description: str = "Display the current queue."
+    enabled_guilds = [294260795465007105, 320759902240899073]
+
+    async def callback(self, ctx):
+        try:
+            session = await ctx.bot.koe.fromCTX(ctx, must_exist=True)
+            embed = await session.queue.getQueueEmbed()
+            await respond_with_timeout(ctx, embed, 20)
+        except NoExistingSession as e:
+            await ctx.respond(str(e))
+
+
+class RepeatMode(SlashCommand):
+    description: str = "Change the repeat mode."
+    enabled_guilds = [294260795465007105, 320759902240899073]
+    name: str = "repeat"
+
+    MODES = {
+        'ONE': Repeat.ONE,
+        'ALL': Repeat.ALL,
+        'NONE': Repeat.NONE
+    }
+
+    mode: str = Option("The repeat mode to set.", choices=MODES.keys())
+
+    async def callback(self, ctx):
+        try:
+            session = await ctx.bot.koe.fromCTX(ctx, must_exist=True)
+            await session.repeat(RepeatMode.MODES[ctx.options.mode])
+            await respond_with_timeout(ctx, f"Set repeat mode to `Repeat {ctx.options.mode}`.", 5)
+        except NoExistingSession:
+            await respond_with_timeout(ctx, "I'm not connected to voice.", 5)
 
 
 class Last(SlashCommand):
@@ -168,7 +226,6 @@ class Enqueue(SlashCommand):
     async def callback(self, ctx):
         session = await ctx.bot.koe.fromCTX(ctx, must_exist=True)
         await ctx.bot.lavalink.get_guild_node(session.gid)
-
 
 
 def load(bot):

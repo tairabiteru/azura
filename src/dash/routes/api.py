@@ -1,4 +1,4 @@
-from ext.koe.koe import RemoteKoeSession, ChildKoeSession
+from ext.koe.session import RemoteKoeSession, ChildKoeSession
 from ext.koe.queue import PositionError
 from ext.koe.exceptions import NoExistingSession
 

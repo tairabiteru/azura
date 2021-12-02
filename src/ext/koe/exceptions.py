@@ -44,3 +44,8 @@ class NoAvailableEndpoint(KoeException):
 class BadResponse(KoeException):
     """Raised when a request is made expecting a response, but that response is invalid."""
     pass
+
+
+class TrackNotFound(KoeException):
+    """Raised when a requested track could not be found."""
+    pass

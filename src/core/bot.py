@@ -9,7 +9,8 @@ from core.conf import conf, initLogger
 from core.commands import SlashCommandCheckFailure
 from core.child import ChildConnector
 from core.help import TopicContainer
-from ext.koe.koe import Koe, KoeEventHandler
+from ext.koe.koe import Koe
+from ext.koe.events import KoeEventHandler
 # from core.subroutines import subroutine
 from dash.core import Dash
 from orm.revisioning import Revisioning

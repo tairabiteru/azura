@@ -1,9 +1,5 @@
 import asyncio
-
-
-class QueueIsEmpty(Exception):
-    """Raised when the queue is accessed while empty."""
-    pass
+import hikari
 
 
 class PositionError(Exception):
@@ -36,6 +32,10 @@ class KoeQueue:
                 raise PositionError(f"Invalid position: `{pos+1}`. Position must be between 1 and {len(self._queue)} for this queue.")
             self._pos = pos
 
+    async def pos(self):
+        async with self._lock:
+            return self._pos
+
     async def move(self, by):
         async with self._lock:
             new_pos = self._pos
@@ -52,9 +52,26 @@ class KoeQueue:
         async with self._lock:
             return self._queue
 
+    async def getQueueEmbed(self, forward=10, backward=10):
+        async with self._lock:
+            embed = hikari.embeds.Embed(title="Current Queue")
+            desc = ""
+
+            for i, track in enumerate(self._queue):
+                if i == self._pos:
+                    desc += f"\n❯ {track.track.info.title} ❮\n\n"
+                elif i >= (self._pos - backward) or i <= (self._pos + forward):
+                    position = self._pos + i if self._pos != 0 else 1
+                    desc += f"{position}. {track.track.info.title}\n"
+            embed.description = f"```{desc}```"
+            return embed
+
     async def currentTracks(self):
         async with self._lock:
             return self._queue[self._pos:]
+
+    async def currentTrack(self):
+        return (await self.currentTracks())[0]
 
     async def isEnd(self):
         async with self._lock:
@@ -63,3 +80,7 @@ class KoeQueue:
     async def isStart(self):
         async with self._lock:
             return self._pos == 0
+
+    async def isEmpty(self):
+        async with self._lock:
+            return self._queue == []

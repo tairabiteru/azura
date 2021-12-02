@@ -1,7 +1,8 @@
 from core.conf import conf
 from dash.core import Dash
 from ext.utils import localnow
-from ext.koe.koe import Koe, KoeEventHandler
+from ext.koe.koe import Koe
+from ext.koe.events import KoeEventHandler
 
 import aiohttp
 import asyncio
