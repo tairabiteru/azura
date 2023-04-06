@@ -1,82 +1,71 @@
 <!DOCTYPE html>
-<meta charset="UTF-8">
-<html>
-  <head>
-    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"></link>
-    <link rel="stylesheet" href="/static/css/playlists.css"></link>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        
+        <title>Azura</title>
 
-    <script src="/static/js/table-dragger.min.js"></script>
-    <script src="https://kit.fontawesome.com/db8c487bb7.js" crossorigin="anonymous"></script>
-  </head>
+        <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"/>
+        <link rel="stylesheet" href="/static/css/playlists.css"/>
 
-  <header class="animate6s">
-    <h1 class="rainbow">Azura</h1>
-  </header>
+        <script src="/static/js/xhr.js"></script>
+        <script src="/static/js/table-dragger.min.js"></script>
+        <script src="https://kit.fontawesome.com/db8c487bb7.js" crossorigin="anonymous"></script>
+    </head>
 
-  <div class="main">
-  <body>
-    <label for="playlists" style="display:none">Playlist:</label>
-    <select name="playlists" id="playlists" onchange="change()">
-      <option value="Select a playlist...">Select a playlist...</option>
-      <option value="Add new playlist...">Add new playlist...</option>
-      {% for playlist, entries in playlists.items() %}
-        <option value="{{ playlist }}">{{ playlist }}</option>
-      {% endfor %}
-    </select>
-    <input id="addRecordBtn" type="submit" value="Add Record" onclick="addRecord()" disabled>
-    <input id="delPlaylistBtn" type="submit" value="Delete Playlist" onclick="deletePlaylist()" disabled>
-    <input id="saveBtn" type="submit" value="Save" onclick="savePlaylist()" disabled>
+    <header class="animate6s">
+        <h1 class="rainbow">Azura</h1>
+    </header>
 
-    <label for="new_playlist_label" id="new_playlist_label" style="display:none">Name: </label>
-    <input type="search" value="" id="new_playlist_entry" placeholder="Enter the name of the playlist..." class="namegen" style="display:none"></input>
-
-    {% for playlist, entries in playlists.items() %}
-    <div id="{{ playlist }}_anim_div">
-    <label for="{{ playlist }}_name" id="{{ playlist }}_name_label" style="display:none">Name</label>
-    <input type="search" value="{{ playlist }}" id="{{ playlist }}_name" placeholder="Enter the name of the playlist..." class="namegen" style="display:none"></input>
-    <table class="dragtable" id="{{ playlist }}" style="display:none">
-      <thead>
-      <tr>
-    		<th></th>
-        <th class="namegen">Name</th>
-        <th class="namegen">Generator</th>
-    		<th>Start</th>
-    		<th>End</th>
-        <th></th>
-        <th></th>
-      </tr>
-      </thead>
-      <tbody>
-    		<form>
-    			{% for i in range(entries|length) %}
-    			  <tr id="{{playlist}}_{{i}}">
-    					<td class='handle' style="padding: 5px 5px 5px 5px"><i class="fas fa-bars"></i></td>
-    			    <td><input type="search" value="{{ entries[i].custom_title }}" id="{{playlist}}_{{i}}_title" placeholder="Enter a title..." class="namegen"></input></td>
-    			    <td><input type="search" value="{{ entries[i].generator }}" id="{{playlist}}_{{i}}_generator" placeholder="Enter the URL or search string..." class="namegen"></input></td>
-    					<td><input type="search" value="{{ entries[i].start_timestamp }}" id="{{playlist}}_{{i}}_starttime" placeholder="Start at 00:00:00"></input></td>
-    					<td><input type="search" value="{{ entries[i].end_timestamp }}" id="{{playlist}}_{{i}}_endtime" placeholder="End at end of track"></input></td>
-              <td><button type="button" onclick="return deleteEntry(this);" value="{{playlist}}_{{i}}"><i class="fas fa-trash-alt"></i></button></td>
-    			  </tr>
-    			{% endfor %}
-    		</form>
-      </tbody>
-    </table>
-  </div>
-    {% endfor %}
-  </body>
-</div>
-  <script>
-    var tables = document.getElementsByClassName('dragtable');
-    for (i=0; i< tables.length; i++) {
-    	el = tables[i];
-    	var dragger = tableDragger(el, {
-    	    dragHandler: '.handle',
-    			mode: 'row',
-    			onlyBody: true
-    	});
-    }
-  </script>
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
-  <script src="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-  <script src="/static/js/playlists.js"></script>
+    <body>
+        <select id="playlist_selector" name="playlist selector" onchange="change_playlist(this)">
+            <option value="" disabled selected>Select a playlist</option>
+            <option value="-1">Create a playlist</option>
+            {% for playlist in playlists %}
+            <option value="{{ playlist.id }}">{{ playlist.name }}</option>
+            {% endfor %}
+        </select>
+        <div id="playlist">
+            <div id="controls" style="visibility: hidden;">
+                <div class="input_block">
+                    <label for="playlist_name" id="playlist_name_label">Name: </label>
+                    <input type="search" value="" id="playlist_name" placeholder="Enter a name for the playlist...">
+                </div>
+                
+                <div class="input_block">
+                    <label for="playlist_description" id="playlist_description_label">Description: </label>
+                    <input type="search" value="" id="playlist_description" placeholder="Enter a description for the playlist...">
+                </div>
+                <br/><br/><br/><br/>
+                <div>
+                    <input class="button" id="add_track_button" type="submit" value="Add Track" onclick="create_new_item()">
+                    <input class="button" id="delete_playlist_button" type="submit" value="Delete Playlist" onclick="delete_playlist()">
+                    <input class="button" id="save_playlist_button" type="submit" value="Save Playlist" onclick="save_playlist()">
+                </div> 
+            </div>
+            <br/><br/>
+            <div id="items" style="visibility: hidden;">
+                <table class="dragtable" id="playlist_items_table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <div class="tooltip"><th>Name</th><span class="tooltiptext">Test</span></div>
+                            <th>Source</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="playlist_items_tbody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+        <script src="/static/js/playlists.js"></script>
+    </body>
 </html>

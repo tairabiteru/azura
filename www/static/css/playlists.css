@@ -43,19 +43,21 @@ table {
 }
 
 label {
+  display: block;
   color: white;
   padding-left: 10px;
 }
 
 input {
   padding: 10px 10px 10px 10px;
-  margin: 10px;
+  margin: 5px;
   border-radius: 0px;
   border-style: none;
   box-sizing: border-box;
   color: white;
   background-color: rgba(0, 0, 0, 0.8);
   font-family: 'Montserrat', sans-serif;
+  width: 20em;
 }
 
 input:disabled {
@@ -85,6 +87,17 @@ select {
   font-family: 'Montserrat', sans-serif;
   background-color: rgba(0, 0, 0, 0.8);
   color: white;
+  margin: 10px;
+  width: 300px;
+}
+
+.input_block {
+  float: left;
+}
+
+.input_block input {
+  display: block;
+  width: 20em;
 }
 
 .main {

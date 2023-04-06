@@ -134,3 +134,4 @@ logs/
 libs/orm/old.py
 *.pid
 bin/Lavalink.jarOLD
+www/static/img/*

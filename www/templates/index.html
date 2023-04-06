@@ -16,16 +16,12 @@
     <body>
       <center>
         <div class="avatarcard">
-          <img src="{{ bot.user.avatar_url }}">
+          <img src="{{ bot.get_me().avatar_url }}">
           <div class="avatarcard_container">
-            <h1 class="rainbow">{{ bot.user.name }}</h1><br><br>
+            <h1 class="rainbow">{{ bot.get_me().username }}</h1><br><br>
             <p>{{ version }}</p>
 
             <button class="optionsbutton" onclick="openNav()"><i class="fas fa-bars"></i></button><br>
-
-            <small>
-              <a class="notice" href="https://commons.wikimedia.org/wiki/File:Vaporwave-4K-Wallpapers.jpg"> Background by Almudena6cv</a><a class="notice" href="https://creativecommons.org/licenses/by-sa/4.0/"> CC-BY-SA-4.0</a>
-            </small>
           </div>
         </div>
       </center>
