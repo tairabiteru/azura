@@ -1,52 +1,34 @@
-# Azura 4
+# Azura 5
+Azura is a powerful, fully featured music bot with playlist functionality, advanced track queueing, and a whole lot more.
 
-Azura is a powerful Discord music bot with advanced features, and the ability to connect to more than one channel in the same server.
+## Why?
+Azura was written at a time when advanced features like playlist support, advanced queues with the ability to move back and forth, skip to different spots, and dequeue were not available. Many of these features still aren't available, and so Azura remains. Plus, where's the fun in using some pre-made solution?
 
+## Libraries and Software
+Azura is written in Python 3, making use of [Hikari](https://github.com/hikari-py/hikari) for her API connection, and [Django](https://github.com/django/django) for her Model-View Controller. Her audio system, like many before her, is founded upon [Lavalink](https://github.com/lavalink-devs/Lavalink), and is specifically built for v4.
 
-## How's she work?
-First and foremost, I want to get one thing out there. **Azura is not a normal bot.** She doesn't operate the same way "normal" music bots do, and this is for reasons I will explain. Let's look first at how Azura came about, because that's integral to explaining why she's designed the way she is.
+Notably missing from that list is any Python library for her Lavalink connection. That's because she doesn't have one. Azura interfaces directly with Lavalink via a component of her internally called "Hanabi", though I will note that Hanabi was very much inspired by [Lavaplay](https://github.com/HazemMeqdad/lavaplay.py) and [lavasnek_rs](https://github.com/vicky5124/lavasnek_rs). (You guys rock!)
 
-#### A Growing Server with a Growing Problem
-When I first wrote Azura, I did so because I wanted a music bot that offered more complex functionality than what was available at the time. The ability to store and create playlists, or the ability to have global playlists. The ability to advance back and forth by specific numbers, or to particular parts of the queue. The ability to enqueue songs to the front of the queue, or the back, or to interlace songs with others. None of this existed at the time, and a lot of it, to be honest, still doesn't. So I wrote Azura. She went through some revisions, but at her core, she was one bot on one server.
+## How Does Hanabi Work?
+Alright, buckle up. I'm gonna try to explain it, but I barely get it myself, and I wrote the damn thing.
 
-Then my server got a bit bigger. We soon found ourselves in an increasingly familiar situation where we'd have multiple active voice channels who all want to use the music bot. Azura is one bot, who cannot connect to more than one channel. Problem.
+Hanabi is founded on the concept of a "session" or, an instance of a bot being connected to a voice channel. When you run a command which requires a voice connection, Azura's first objective is to obtain a session object from Hanabi. This session object may be either a 'local' or a 'remote' variety, but the methods it contains for acting upon a voice connection are the same between the two. A local session's methods directly act upon a voice connection in the way you'd expect. A remote variant as stated contains the same methods, but these methods instead act by transmitting information over a websocket connection to the child who is actually in control of the session. On the child's end, a remote session on the parent acts as a link to a local session on the child, and by interpreting the information recieved over the websocket, the child can receive direct instructions from the parent.
 
-The simple solution to this is to have more than one bot, but think about what Azura is, and what that means: since Azura stores playlists, this means both bots need to access the same database. The commands all need to be a perfect match, and they have to be kept in sync with each other.
+So basically, a local session is when the parent is in control. A remote session is when the parent is telling a child what to do on their behalf.
 
-I found a way to do this in what was, admittedly, a bodge. A massive, ugly bodge which effectively had me running two copies of Azura, both with different prefixes, but accessing the same database. We *tolerated* this for a while, and even then, with many mistakes resulting from people executing commands with the wrong prefix.
+Previous iterations of Azura did this in the exact same manner, but instead of websockets, a REST API was used. Websockets require a lot less overhead in that each bot does not have to run an entire webserver. Further, the websocket connection can be kept open, and the result is much faster communication.
 
-Then slash commands came.
+## FAQ
+- **Why doesn't Azura use an existing Lavalink library?** - A lot of complicated reasons. The main one however, is that all previous versions of Azura "danced" around existing "oddities" in previous libraries she's used. (Not really oddities so much as differences in what they expect vs how Azura functions.) This isn't the maintainers' fault or anything, it's just that Azura's doing way more intricate queue management. I found that I was basically re-implementing what they'd already written, only differently. The only things my code didn't implement were the REST API calls and the websocket connection, and when I realized that I could do that myself, there was little point to continuing to use existing libraries like this.
 
-So now you're telling me that not only would the commands be identical in prefix, but the user is expected to know and select the correct bot that's not being used from a list of them?
+- **Wait, so why is Hanabi different from a normal lavalink wrapper?** - There's two main reasons. First of all, Azura's queue management is a lot more intricate than most. Not only does Azura do the traditional stuff like appending to a queue, but she can also insert into the queue, interweave two playlists into one queue, and even dequeue items based on a rule. The second reason is because Azura is a *mutliplicity* of bots. She runs as a single bot, but allows you to configure more bots as her "children" who she can command, thus allowing her to operate in more than one voice channel in a single server. It is this basic requirement that explains her entire session system really. Azura doesn't simply respond to commands right off the bat because those commands *might not even be for her.*
 
-No. I draw the line there.
+- **How do Azura's children work without their own slash commands?** - The simple answer? They don't. Azura tells them what to do. The longer answer is that each bot, parent or child, is programmed to start a websocket server on a different port. When Azura initializes, she uses multiprocessing to also start her own children. Her children are programmed to send her a message saying they've completed initialization once this is done. From there, an open websocket connection is maintained with each child, and when commands are processed, Azura uses these connections to transmit information down the line, if need be.
 
-But what to do? It's clear that we can't simply have two bots with identical commands. That's way too messy, so let's not. Let's have one bot with one set of commands.
-That's all fine and dandy, but now we have one bot who can only join one voice channel in one server at a time, so how do we fix that?
-Multiple bots.
+- **Hanabi sounds kind of cool. Would you ever release it standalone?** - Probably not, gonna be honest. Hanabi is so specialized both to Hikari and Azura that I doubt anyone would have much use for it. Doing so would also restrict the way I want to use it with Azura and ultimately take more of my already limited time. If you want to pick through it though and see how it works, you're of course more than welcome.
 
-"What? But you just said..."
+- **There's a lot of stuff in your code that doesn't make sense.** - Yep. You think I understand any of this? All I did was write Azura...that doesn't mean I understand her. In seriousness, yes. I know. Azura v5 was a complete rewrite of her former self, and a lot of the design decisions have yet to be refined. At the same time, bear in mind that Azura's multi-bot nature forces her to work a bit differently compared to most music bots.
 
-I know what I said. I never said both bots have to have commands. But if only one bot has commands, how does the second bot know what to do? Simple*. The first bot tells it what to do.
+- **Can I add Azura to my Discord server?** - You're welcome to run her yourself, but if you're asking whether or not you can add *MY* instance of her, then the answer is no. I'm more than happy to share my code with others. Indeed, Azura would not exist without the kindness of strangers on the internet who decide to show others what they've done out of the kindness of their hearts. But my server has a finite amount of RAM. Go get your own.
 
-*Ah yes, the asterisk. That pesky symbol indicating that there's much more to the aforementioned information.
-No, of course it's not simple, you idiot. We're talking about running two separate processes, and having these processes talk to each other somehow while also running a highly intricate queue system. How on earth do we do that?
-
-This is the ambitious problem that Azura is meant to solve. The way she does this is with a custom session management system I wrote called "Koe". Koe is uniquely designed to manage voice sessions both locally and remotely.
-
-#### Understanding Koe
-The key to understanding how Azura works is understanding hoe *Koe* works. Koe effectively wraps Lavasnek_rs' session system, adding in extra functionality along the way.
-At the top, there is the `Koe` object itself. Koe acts as the effective "business end" of the system, providing access to methods which allow one to create, destroy, and manipulate voice sessions. `Koe` stores these sessions in an internal dictionary mapping voice channel IDs to the session objects themselves.
-The session objects stored within are one of two flavors, `LocalSession` and `RemoteSession`.
-
-- `LocalSession` are instances of a voice connection which is local to the `Koe` instance containing it. A `LocalSession` has methods like `connect()`, `skip()`, `pause()`, etc... It operates pretty much exactly how you'd expect.
-- `RemoteSession` are instances of a voice connection which is *not* local to the `Koe` instance containing it. Within the Koe architecture, these can really only be instantiated by the parent bot. They also contain the exact same methods as a `LocalSession`, except instead of calling the correct code directly, they map to web endpoints which when called, make requests to the child bot that the endpoint maps to.
-
-So how's all this fit together?
-When someone makes a request for a song to be played, the request is received by the parent bot, and ultimately passed to the bot's `Koe` instance. Koe then checks to see if an existing session for the voice channel requested exists. If it does, great! We can simply get that session, and then call `play()` on it. But if it doesn't then Koe needs to figure out if the parent is already connected to the guild in question. If the parent isn't, great! Koe creates an instance of `LocalSession`, and then calls the `connect()` method, to connect to the voice channel and begin playback. If the parent is already connected though, then that means someone is already using the parent in the server. So instead, Koe sets up the creation of a `RemoteSession`. It does this by first checking with the child bots to see if any are available for that guild. The parent will take the first one which is able to respond, if any. After a handshake of sorts, the parent creates an instance of `RemoteSession`, and then calls `connect()` on it. This causes a web request to be sent to the web server running on all of the bots, and then is received by the child. The child bot responds by invoking its own `Koe` instance, creating it's own `LocalSession`, ultimately calling the `connect()` method on it. This connects the child to the voice channel, and the request is complete. Now do this for every single command that can be executed, and bam. That's Koe.
-
-This glosses over a bit. Like for example, the fact that when a session is disconnected, all instances matching that session have to be deleted, remote or otherwise. This is mostly fine since the parent bot handles almost all commands.
-
-* ahem *. Almost.
-
-See, you're forgetting about buttons, which - by their very nature - must be handled by the bot that sends the message. In the instance of a `RemoteSession`, this would be the child bot. But if the child bot disconnects their own `LocalSession`, then that means the parent bot has absolutely no idea what happened. To ensure uniformity, if the child bot is the one destroying the session, it must also make an upstream call to an endpoint on the parent, instructing it to delete the `RemoteSession` which corresponds to the local one they just deleted. Every little bit of this glosses over some complexity. But Koe is a complex system. I set high standards when I began solving these original problems, and Koe is the only system I know of that meets them.
+- **Why does Azura use Django?** - Ugh...read the docstring in `azura/mvc/manage.py`. That explains it.

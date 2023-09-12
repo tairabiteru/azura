@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<html>
+  <head>
+    <link rel="stylesheet" href="/static/css/toastr-2.1.4.min.css">
+    <link rel="stylesheet" href="/static/css/user.css">
+    <link href='https://fonts.googleapis.com/css?family=Aldrich' rel='stylesheet'>
+  </head>
+  <h1>User Settings</h1>
+  <h3>Welcome, {{ user.username }}!</h3>
+  
+  {% csrf_token %}
+  <div class="box">
+    <img src="{{ user.avatar_url }}" class="avatar">
+  <h3>General</h3>
+    <div class="tooltip">
+      <label for="volume_step">Volume Step</label>
+      <input type="number" id="volume_step" value="{{ user.general.volume_step }}" onchange="save(this)">
+      <span class="tooltiptext">{{ user.general.volume_step_desc }}</span>
+    </div>
+    <br>
+    <div class="tooltip">
+      <label for="prompt_on_search">Prompt on Search</label>
+      <input type="checkbox" id="prompt_on_search" onchange="save(this)" {% if user.general.prompt_on_search %}checked{% endif %}>
+      <span class="tooltiptext">{{ user.general.prompt_on_search_desc }}</span>
+    </div>
+  </div>
+  <div class="box">
+    <h3>Locale</h3>
+    <div class="tooltip">
+      <label for="timezone">Timezone</label>
+      <select id="timezone" onchange="save(this)">
+        {% for timezone in timezones %}
+        <option value="{{ timezone }}"{% if timezone == user.locale.timezone %}selected{% endif %}>{{ timezone }}</option>
+        {% endfor %}
+      </select>
+      <span class="tooltiptext">{{ user.locale.timezone_desc }}</span>
+    </div>
+    <br>
+    <div class="tooltip">
+      <label for="date_format">Date Format</label>
+      <select id="date_format" onchange="save(this)">
+        {% for format in date_formats %}
+        <option value="{{ format.0 }}"{% if format.0 == user.locale.date_format %}selected{% endif %}>{{ format.1 }}</option>
+        {% endfor %}
+      </select>
+      <span class="tooltiptext">{{ user.locale.date_format_desc }}</span>
+    </div>
+    <br>
+    <div class="tooltip">
+      <label for="time_format">Time Format</label>
+      <select id="time_format" onchange="save(this)">
+        {% for format in time_formats %}
+        <option value="{{ format.0 }}"{% if format.0 == user.locale.time_format %}selected{% endif %}>{{ format.1 }}</option>
+        {% endfor %}
+      </select>
+      <span class="tooltiptext">{{ user.locale.time_format_desc }}</span>
+    </div>
+    <br>
+  </div>
+  <script src="/static/js/jquery-3.6.4.min.js"></script>
+  <script src="/static/js/toastr-2.1.4.min.js"></script>
+  <script src="/static/js/user.js"></script>
+</html>

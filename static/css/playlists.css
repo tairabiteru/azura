@@ -1,0 +1,129 @@
+@import url("https://fonts.googleapis.com/css2?family=Bungee&display=swap");
+body {
+  margin: auto;
+  align-items: center;
+  justify-content: center; }
+
+header {
+  background-color: rgba(0, 0, 0, 0.1);
+  margin: auto; }
+
+h1 {
+  font-size: 48px;
+  color: white;
+  font-family: 'arial';
+  margin: 0px;
+  margin-left: 20px;
+  text-shadow: -3px 3px rgba(255, 255, 255, 0.5); }
+
+body, html {
+  margin: 0;
+  padding: 0;
+  font-family: 'Montserrat', sans-serif;
+  height: 100%;
+  position: relative;
+  background-image: url("/static/img/vaporwave.jpg");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  color: white; }
+
+table {
+  padding: 10px;
+  border: 0px;
+  border-collapse: collapse;
+  margin-left: 10px;
+  margin-right: auto;
+  color: white;
+  font-family: 'Montserrat', sans-serif; }
+
+td {
+  color: inherit; }
+
+label {
+  display: block;
+  color: white;
+  padding-left: 10px; }
+
+input {
+  padding: 10px 10px 10px 10px;
+  margin: 5px;
+  border-radius: 0px;
+  border-style: none;
+  box-sizing: border-box;
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.8);
+  font-family: 'Montserrat', sans-serif;
+  width: 20em; }
+
+input:disabled {
+  color: red; }
+
+button {
+  padding: 10px 10px 10px 10px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  border-radius: 0px;
+  border-style: none;
+  font-family: 'Montserrat', sans-serif; }
+
+small {
+  color: white; }
+
+a {
+  color: hotpink; }
+
+select {
+  padding: 10px 10px 10px 10px;
+  border-style: none;
+  font-family: 'Montserrat', sans-serif;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  margin: 10px;
+  width: 300px; }
+
+.input_block {
+  float: left; }
+
+.input_block input {
+  display: block;
+  width: 20em; }
+
+.main {
+  min-height: 92vh;
+  overflow: hidden;
+  display: block;
+  position: relative; }
+
+.handle {
+  padding: 5px 5px 5px 5px; }
+
+.namegen {
+  width: 400px; }
+
+.animate6s {
+  animation: fadeIn ease 6s; }
+
+.animate-750ms {
+  animation: fadeIn ease 0.75s; }
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0; }
+  100% {
+    opacity: 1; } }
+
+.rainbow {
+  background: linear-gradient(to right, #ff0000, #ff9000, #ffff00, #90ff00, #00ff00, #00ff90, #00ffff, #0090ff, #0000ff, #9000ff, #ff00ff, #ff0090);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: rainbow_animation 8s cubic-bezier(1, -0.6, 0, 1.6) infinite;
+  background-size: 400% 100%;
+  padding: 10px 10px 10px 10px; }
+
+@keyframes rainbow_animation {
+  0%, 100% {
+    background-position: 0 0; }
+  50% {
+    background-position: 100% 0; } }

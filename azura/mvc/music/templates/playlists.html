@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        
+        <title>Azura</title>
+
+        <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"/>
+        <link rel="stylesheet" href="/static/css/playlists.css"/>
+
+        <script src="https://unpkg.com/htmx.org@1.9.5" integrity="sha384-xcuj3WpfgjlKF+FXhSQFQ0ZNr39ln+hwjN3npfM9VBnUskLolQAcN80McRIVOPuO" crossorigin="anonymous"></script>
+        <script src="/static/js/table-dragger.min.js"></script>
+        <script src="https://kit.fontawesome.com/db8c487bb7.js" crossorigin="anonymous"></script>
+    </head>
+
+    <header class="animate6s">
+        <h1 class="rainbow">Azura</h1>
+    </header>
+    <input type="hidden" value='{"X-CSRFToken": "{{ csrf_token }}"}' id="csrf_token">
+    <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' id="body">
+        <select id="playlist_selector" name="playlist_id" hx-post="get/" hx-target="#playlist" hx-swap="outerHTML">
+            <option value="" disabled selected>Select a playlist</option>
+            <option value="-1">Create a playlist</option>
+            {% for playlist in playlists %}
+            <option value="{{ playlist.id }}">{{ playlist.name }}</option>
+            {% endfor %}
+        </select>
+        <div id="playlist">
+            
+        </div>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+        <script src="/static/js/playlists.js"></script>
+    </body>
+</html>

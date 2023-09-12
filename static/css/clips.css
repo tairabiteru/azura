@@ -1,0 +1,60 @@
+body {
+  color: #ffffff;
+  font-family: Aldrich;
+  align-items: center;
+  justify-content: center;
+  margin: auto; }
+
+body, html {
+  margin: 0;
+  padding: 0;
+  font-family: 'Montserrat', sans-serif;
+  position: relative;
+  background-color: black;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed; }
+
+h1, h2, h3, h4 {
+  margin-left: 5vw; }
+
+h4 {
+  color: cyan; }
+
+button {
+  background-color: #9933ff;
+  color: #ffffff;
+  border: none;
+  text-align: center;
+  font-size: 16px;
+  font-weight: bold;
+  padding: 5px 10px;
+  margin: 1px 1px; }
+
+button:hover {
+  background-color: #6600cc; }
+
+.clipbody {
+  width: 90vw;
+  background-color: rgba(20, 20, 20, 0.75);
+  vertical-align: middle;
+  margin-right: auto;
+  margin-left: auto;
+  padding: 20px 20px; }
+
+.submissionbody {
+  width: 450px;
+  background-color: rgba(20, 20, 20, 0.75);
+  vertical-align: middle;
+  margin-left: 5vw;
+  padding: 20px 20px; }
+
+.toodamnbad {
+  width: 378px; }
+
+#clipsubmission {
+  margin-top: 50px; }
+
+input {
+  height: 30px;
+  font-size: 16px; }

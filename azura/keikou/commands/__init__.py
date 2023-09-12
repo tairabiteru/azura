@@ -1,3 +1,5 @@
+"""Module which subclasses the Lightbulb commands to work with Keikou"""
+
 __all__ = [
     "CommandLike",
     "PrefixCommand",

@@ -1,3 +1,8 @@
+"""Module defining a Plugin for Keikou
+
+    * Plugin - Basically the same as a Lightbulb plugin, but we define a node property for it
+"""
+
 import lightbulb
 
 

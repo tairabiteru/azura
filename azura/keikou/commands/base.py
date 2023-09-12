@@ -1,4 +1,11 @@
-from keikou.permissions import GrantLevel, PermissionCheck
+"""Module which bases all command types in Keikou
+
+    * CommandLike - Subclasses Lightbulb's counterpart to include the grant level
+    * KeikouMixin - A mixin that mixes Keikou's functionality in to subclasses
+"""
+
+
+from ..permissions import GrantLevel, PermissionCheck
 
 import dataclasses
 import lightbulb

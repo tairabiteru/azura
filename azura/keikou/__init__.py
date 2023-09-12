@@ -1,3 +1,11 @@
+"""Module defining keikou
+
+Keikou is Farore's custom command management system. Keikou is responsible
+for the automatic implementation of the /help command, as well as the
+automatic permissions definition system which underlies all command execution
+Farore performs. At its core, Keikou is a heavily modified version of Hikari Lightbulb.
+"""
+
 __all__ = [
     "EXPLICIT",
     "IMPLICIT",
@@ -25,8 +33,8 @@ __all__ = [
 
 from lightbulb import *
 
-from keikou.commands import *
-from keikou.decorators import *
-from keikou.help import *
-from keikou.permissions import *
-from keikou.plugins import *
+from .commands import *
+from .decorators import *
+from .help import *
+from .permissions import *
+from .plugins import *

@@ -1,4 +1,7 @@
-from keikou.commands.base import KeikouMixin
+"""Module subclassing Lightbulb's slash command types"""
+
+
+from .base import KeikouMixin
 
 import lightbulb
 

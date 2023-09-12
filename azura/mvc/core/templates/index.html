@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<html>
+  <head>
+    <link rel="stylesheet" href="/static/css/index.css"></link>
+    <script src="https://kit.fontawesome.com/db8c487bb7.js" crossorigin="anonymous"></script>
+  </head>
+
+  <div id="nav" class="sidenav">
+    <a href="javascript:void(0)" class="closebtn" onclick="toggleNav()">&times;</a>
+    <a href="/discord/user">User Settings</a>
+    <a href="/playlists">Playlists</a>
+    {% if display_admin %}<a href="/admin">Administrative Backend</a>{% endif %}
+  </div>
+
+  <div id="main">
+    <body>
+      <center>
+        <div class="avatarcard">
+          <img src="{{ avatar_url }}">
+          <div class="avatarcard_container">
+            <h1 class="rainbow">{{ name }}</h1><br><br>
+            <p>{{ version }}</p>
+
+            <button class="optionsbutton" onclick="toggleNav()"><i class="fas fa-bars"></i></button><br>
+          </div>
+        </div>
+      </center>
+    </body>
+  </div>
+  <script src="/static/js/index.js"></script>
+</html>

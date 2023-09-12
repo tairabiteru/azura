@@ -1,0 +1,47 @@
+<div id="playlist">
+    <div id="controls">
+        <div class="input_block">
+            <label for="playlist_name" id="playlist_name_label">Name: </label>
+            <input type="search" value="{{ playlist.name }}" id="playlist_name" placeholder="Enter a name for the playlist...">
+        </div>
+        
+        <div class="input_block">
+            <label for="playlist_description" id="playlist_description_label">Description: </label>
+            <input type="search" value="{{ playlist.description }}" id="playlist_description" placeholder="Enter a description for the playlist...">
+        </div>
+        <br/><br/><br/><br/>
+        <div>
+            <input class="button" id="add_track_button" type="submit" value="Add Track" onclick="append_entry('', '', '', '')">
+            <input class="button" id="delete_playlist_button" type="submit" value="Delete Playlist" onclick="delete_playlist()">
+            <input class="button" id="save_playlist_button" type="submit" value="Save Playlist" onclick="save_playlist()">
+        </div> 
+    </div>
+    <br/><br/>
+    <div id="entries">
+        <table class="dragtable" id="playlist_entries_table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Name</th>
+                    <th>Source</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th></th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="playlist_entries_tbody">
+                {% for entry in entries %}
+                {% if entry.failed %}<tr style="color: yellow;">{% else %}<tr style="color: white;">{% endif %}
+                    <td class="handle"><i class="fas fa-bars" aria-hidden="true"></i></td>
+                    <td><input type="search" placeholder="Enter a title..." value="{{ entry.title }}"></td>
+                    <td><input type="search" placeholder="Enter a source..." value="{{ entry.source }}"></td>
+                    <td><input type="search" placeholder="00:00" value="{{ entry.start }}"></td>
+                    <td><input type="search" placeholder="End of Track" value="{{ entry.end }}"></td>
+                    <td><button type="button" onclick="delete_entry(this);"><i class="fas fa-trash-alt" aria-hidden="true"></i></button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

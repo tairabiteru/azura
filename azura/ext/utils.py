@@ -1,43 +1,150 @@
-from core.conf import conf
+"""Module defining various utility functions and classes
 
+This extension is basically a "miscellaneous" helper function file.
+It largely contains things that don't fit anywhere else.
+
+    * aio_get - Shortcut coroutine to performing an async GET request
+    * aio_post - Same as above, but with POST instead
+    * bearing_to_cardinal - Function which converts a compass bearing to a cardinal direction
+    * coord_bearing - Function taking two pairs of coordinates and returning the compass bearing of the line drawn between them
+    * coord_convert - Function taking a latitude and longitude and returning it in degree, minute, second format
+    * coord_distance - Function taking two pairs of coordinates and returning the distance between them in miles
+    * dir_size - Function which walks through a directory returning the size of its contents in bytes
+    * execute_in_background - Shortcut function to add a coroutine to the event loop
+    * get_byte_unit - Function taking a number of bytes and reducing it to the best unit (MB, GB, etc)
+    * get_sha512_of - Function taking a path and returning the SHA512 hash digest of the contents of that path
+    * get_lines_of - Function taking a path, and counting the total number of lines of the contents of that path
+    * get_chars_of - Same as above, but with characters
+    * is_all_caps - Function taking a string and returning a boolean telling if the text is entirely composed of capital letters
+    * is_alphabet - Function taking a string and returning a boolean telling of the text is entirely made of alphabet characters
+    * lint - Function which performs linting on all files contained under the path
+    * ordinal - Function taking an integer and returning its ordinal form (ex: 1 -> 1st, 3 -> 3rd, etc...)
+    * utcnow - Shortcut function to obtain the current UTC datetime object
+    * icmp_ping - Function implementing abstraction of ICMP pinging
+    * resize_for_upload - Function taking the path to an image and resizing it (if necessary) to be within Discord's upload limits
+    * port_in_use - Function taking a TCP/IP port number and returning True if it is in use, and False otherwise
+"""
+
+import aiofiles
 import aiohttp
-import base64
-from bs4 import BeautifulSoup
 import datetime
-import ipaddress
+import hikari
 import os
-from pylama.main import check_path, parse_options
-import pytz
-import re
+import zoneinfo
+from PIL import Image
+from pylama.main import parse_options, check_paths
+import hashlib
 import string
 import subprocess
+import geopy.distance
+import math
+import socket
 
 
-async def aio_get(url, headers={}, fmt="text"):
+async def aio_get(url, headers={}, format="text", valid_responses=[200]):
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
-            if response.status != 200:
+            if response.status not in valid_responses:
                 raise ValueError(f"Response code retrieving URL {url} was {response.status}.")
-            if fmt == "text":
+            
+            if format == "text":
                 return await response.text()
-            elif fmt == "json":
+            elif format == "json":
                 return await response.json()
-            elif fmt == "bytes":
+            elif format == "bytes":
                 return await response.read()
             else:
-                raise ValueError(f"Unsupported format '{fmt}'.")
+                raise ValueError(f"Unsupported format: '{format}'.")
 
 
-def cleanGetParams(request):
-    if "code" in request.rel_url.query:
-        raise aiohttp.web.HTTPFound(str(request.rel_url).split("?")[0])
+async def aio_post(url, data={}, headers={}, format="text", valid_responses=[200]):
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, data=data, headers=headers) as response:
+            if response.status not in valid_responses:
+                raise ValueError(f"Response code retrieving URL {url} was {response.status}.")
+            
+            if format == "text":
+                return await response.text()
+            elif format == "json":
+                return await response.json()
+            elif format == "bytes":
+                return await response.read()
+            else:
+                raise ValueError(f"Unsupported format: '{format}'.")
 
 
-def commaSeparate(input):
-    return "{:,}".format(int(input))
+def bearing_to_cardinal(bearing):
+    dirs = [
+        "N",
+        "NNE",
+        "NE",
+        "ENE",
+        "E",
+        "ESE",
+        "SE",
+        "SSE",
+        "S",
+        "SSW",
+        "SW",
+        "WSW",
+        "W",
+        "WNW",
+        "NW",
+        "NNW",
+    ]
+    index = int((bearing + 11.25) / 22.5 - 0.02)
+    return dirs[index % 16]
 
 
-def dirSize(path):
+def coord_bearing(lat1, lon1, lat2, lon2):
+    lat1 = math.radians(lat1)
+    lon1 = math.radians(lon1)
+    lat2 = math.radians(lat2)
+    lon2 = math.radians(lon2)
+    dlon = math.radians(lon2 - lon1)
+    x = math.sin(dlon) * math.cos(lat2)
+    y = math.cos(lat1) * math.sin(lat2) - (
+        math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
+    )
+    bearing = (math.degrees(math.atan2(x, y)) + 360) % 360
+    return bearing
+
+
+def coord_convert(lat, lon):
+    lat = float(lat)
+    lon = float(lon)
+    if lat == 0:
+        dir = ""
+    else:
+        dir = "S" if lat < 0 else "N"
+    lat = abs(lat)
+    deg = round(lat)
+    min = round(float("0." + str(lat).split(".")[1]) * 60)
+    sec = round(
+        float("0." + str(float("0." + str(lat).split(".")[1]) * 60).split(".")[1]) * 60
+    )
+    lat = str(deg) + "° " + str(min) + "' " + str(sec) + '" ' + dir
+    if lon == 0:
+        dir = ""
+    else:
+        dir = "W" if lon < 0 else "E"
+    lon = abs(lon)
+    deg = round(lon)
+    min = round(float("0." + str(lon).split(".")[1]) * 60)
+    sec = round(
+        float("0." + str(float("0." + str(lon).split(".")[1]) * 60).split(".")[1]) * 60
+    )
+    lon = str(deg) + "° " + str(min) + "' " + str(sec) + '" ' + dir
+    return (lat, lon)
+
+
+def coord_distance(lat1, lon1, lat2, lon2):
+    p1 = geopy.distance.lonlat(*(lon1, lat1))
+    p2 = geopy.distance.lonlat(*(lon2, lat2))
+    return geopy.distance.distance(p1, p2).miles
+
+
+def dir_size(path):
     total = 0
     try:
         for root, dirs, files in os.walk(path):
@@ -50,84 +157,85 @@ def dirSize(path):
     return total
 
 
-async def getGenshinCodes(active=True):
-    ENDPOINT = "https://genshin-impact.fandom.com/wiki/Promotional_Codes"
-    response = await aio_get(ENDPOINT)
-    tables = BeautifulSoup(response, "html.parser").findAll("table")
-    for table in tables:
-        if table.findAll("th")[0].html == "Code":
-            break
-    rows = table.findAll("tr")
-    codes = []
-    for row in rows:
-        rowdata = row.findAll("td")
-        rowdata = list([r.text.strip() for r in rowdata])
-        if rowdata:
-            codes.append(rowdata)
-    finalcodes = []
-    for code in codes:
-        if "expired" not in code[3].lower() and active:
-            finalcodes.append(code)
-        elif not active:
-            finalcodes.append(code)
-    return finalcodes
+def execute_in_background(func):
+    loop = hikari.internal.aio.get_or_make_loop()
+    return loop.create_task(func)
 
 
-async def getPublicIPAddr():
-    async with aiohttp.ClientSession() as session:
-        async with session.get("https://api.ipify.org?format=json") as response:
-            if response.status != 200:
-                raise ValueError(f"Unable to get public IP address. Server returned status code {response.status}.")
-            json = await response.json()
-            return json['ip']
+def get_byte_unit(numbytes, round_to=2):
+    units = ["B", "KB", "MB", "GB", "TB"]
+    iterations = 0
+    while numbytes >= 1000:
+        numbytes /= 1000.0
+        iterations += 1
+    return f"{round(numbytes, round_to)} {units[iterations]}"
 
 
-def image_as_b64url(path):
-    filetype = path.split(".")[-1].lower()
-    with open(path, "rb") as image:
-        b64encoded = base64.b64encode(image.read()).decode()
-    return f"data:image/{filetype};base64,{b64encoded}"
+async def get_sha512_of(path, restrict_to=[], _hash=None):
+    hash = _hash if _hash is not None else hashlib.sha512()
+    if os.path.isdir(path):
+        for subdir, dirs, fs in os.walk(path):
+            for file in fs:
+                if any([file.endswith(ext) for ext in restrict_to]) or restrict_to == []:
+                    hash = await get_sha512_of(os.path.join(subdir, file))
+        return hash.hexdigest()
+    else:
+        async with aiofiles.open(path, "rb") as file:
+            hash.update((await file.read()))
+            return hash
+
+
+async def get_lines_of(path, restrict_to=[]):
+    if os.path.isdir(path):
+        lines = 0
+        for subdir, dirs, fs in os.walk(path):
+            for file in fs:
+                if any([file.endswith(ext) for ext in restrict_to]) or restrict_to == []:
+                    lines += await get_lines_of(os.path.join(subdir, file))
+        return lines
+    else:
+        async with aiofiles.open(path, "rb") as file:
+            lines = reversed((await file.readlines()))
+            for i, line in enumerate(lines):
+                if line == b"":
+                    lines.pop(i)
+                else:
+                    break
+            return len(lines)
+
+
+async def get_chars_of(path, restrict_to=[]):
+    if os.path.isdir(path):
+        chars = 0
+        for subdir, dirs, fs in os.walk(path):
+            for file in fs:
+                if any([file.endswith(ext) for ext in restrict_to]) or restrict_to == []:
+                    chars += await get_chars_of(os.path.join(subdir, file))
+        return chars
+    else:
+        async with aiofiles.open(path, "rb") as file:
+            return len((await file.readlines()))
+
+
+def is_all_caps(text):
+    return all([not char.islower() or not is_alphabet(char) for char in text]) and any([is_alphabet(char) for char in text])
+
+
+def is_alphabet(s):
+    for char in s:
+        if char not in string.ascii_uppercase and char not in string.ascii_lowercase:
+            return False
+    return True
 
 
 def lint(path):
     opts = {"linters": ["pyflakes"], "async": True, "ignore": ['W0401']}
     options = parse_options([path], **opts)
-    return check_path(options, rootdir=".")
-
-
-def localnow():
-    return datetime.datetime.now(pytz.timezone(conf.timezone))
-
-
-def utcnow():
-    return pytz.timezone("UTC").localize(datetime.datetime.utcnow())
+    return check_paths([path], options, rootdir=".")
 
 
 def ordinal(number):
     return "%d%s" % (number, "tsnrhtdd"[(number//10 % 10 != 1) * (number % 10 < 4) * number % 10::4])
-
-
-def reduceByteUnit(numbytes):
-    units = ["B", "KB", "MB", "GB", "TB"]
-    iterations = 0
-    while numbytes >= 1024:
-        numbytes /= 1024.0
-        iterations += 1
-    return f"{round(numbytes, 2)} {units[iterations]}"
-
-
-def resolve(ctx, object):
-    object = getattr(ctx.options, object)
-    for user in ctx.resolved.users.values():
-        if int(object) == int(user.id):
-            return user
-    for role in ctx.resolved.roles.values():
-        if int(object) == int(role.id):
-            return role
-    for channel in ctx.resolved.channels.values():
-        if int(object) == int(channel.id):
-            return role
-    raise ValueError("No object found.")
 
 
 def strfdelta(delta, fmt):
@@ -140,7 +248,11 @@ def strfdelta(delta, fmt):
     return fmt.format(**d)
 
 
-def icmpping(address, count=4):
+def utcnow():
+    return datetime.datetime.utcnow().replace(tzinfo=zoneinfo.ZoneInfo("UTC"))
+
+
+def icmp_ping(address, count=4):
     process = subprocess.Popen(f"ping -c {count} {address}", stdout=subprocess.PIPE, shell=True)
     while True:
         line = process.stdout.readline().rstrip()
@@ -149,53 +261,56 @@ def icmpping(address, count=4):
         yield line.decode("utf-8")
 
 
-def arpscan(address):
-    rtn = {}
-    if os.name != 'posix':
-        raise TypeError(f"Invalid operating system type '{os.name}'. This only works with 'posix'.")
-    if not re.search("\/\d{1,2}", address[-3:]):
-        address += "/32"
-    if int(address[-2:]) > 32 or int(address[-2:]) < 1:
-        raise ValueError(f"Invalid subnet mask `{address[-3:]}`. It must be between /1 and /32.")
-    rtn['originalAddr'] = address
-    try:
-        addresses = [str(ip) for ip in ipaddress.IPv4Network(address)]
-    except ValueError as e:
-        if "Expected 4 octets" in str(e):
-            raise ValueError(f"Invalid IP address: `{address[:-3]}`")
-        raise ValueError(f"Invalid subnet mask `{address[-3:]}` for given address `{address[:-3]}`. The address has host bits set.")
-    for addr in addresses:
-        output = subprocess.run(["arp", "-a", addr], capture_output=True)
-        output = output.stdout.decode("utf-8")
-        if "no match found" in output:
-            continue
+def resize_for_upload(path, limit=10000000):
+    if os.path.getsize(path) > limit:
+        im = Image.open(path)
+        w, h = im.size
+        im = im.resize((int(w/2), int(h/2)))
+        im.save(path)
+
+
+def port_in_use(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0
+
+
+def strfdelta_long(delta, add_microseconds=False):
+    components = ["", "", "", "", ""]
+
+    if delta.days > 0:
+        plural = "day" if delta.days == 1 else "days"
+        components[0] = f"{delta.days} {plural}"
+    if delta.seconds > 0:
+        h, r = divmod(delta.seconds, 3600)
+        m, s = divmod(r, 60)
+        if h > 0:
+            plural = "hour" if h == 1 else "hours"
+            components[1] = f"{h} {plural}"
+        if m > 0:
+            plural = "minute" if m == 1 else "minutes"
+            components[2] = f"{m} {plural}"
+        if s > 0:
+            plural = "second" if s == 1 else "seconds"
+            components[3] = f"{s} {plural}"
+    if delta.microseconds > 0:
+        plural = "microsecond" if delta.microseconds == 1 else "microseconds"
+        components[4] = f"{delta.microseconds} {plural}"
+    
+    if add_microseconds is False:
+        components = components[0:4]
+    components = [c for c in components if c != ""]
+
+    output = ""
+    for component in components:
+        if component == components[-1] and len(components) != 1:
+            output += f" and {component}"
         else:
-            output = output.split(" at ")
-            ipaddr, hwaddr = (output[0].split(" ")[-1].replace("(", "").replace(")", ""), output[1].split(" ")[0])
-            rtn[ipaddr] = hwaddr
-    return rtn
+            output += f" {component}"
+    return output.strip()
 
 
-def isAlphabet(s):
-    for char in s:
-        if char not in string.ascii_uppercase and char not in string.ascii_lowercase:
-            return False
-    return True
-
-
-def containsMention(text):
-    matches = re.findall("<@![0-9]{18}>", text)
-    matches += re.findall("<@[0-9]{18}>", text)
-    return True if matches else False
-
-
-def containsMentionOf(text, user):
-    return user.mention.replace("!", "") in text
-
-def getThanksgivingOf(year):
+def get_thanksgiving_of(year: int):
     sept1 = datetime.date(year, 9, 1)
     weekday = (sept1.weekday() + 2) % 7
-    thanksgiving = datetime.datetime(year, 11, (29 - weekday), 0, 0, 0, 0)
-    return thanksgiving
-
-
+    return datetime.datetime(year, 11, (29 - weekday), 0, 0, 0, 0)
+    
