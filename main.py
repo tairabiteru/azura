@@ -28,19 +28,18 @@ os.chdir(conf.root_dir)
 
 
 def main(daemon=False):
-    
-    uvloop.install()
-    
-    if os.path.exists(os.path.join(conf.root, "lock")):
-        os.remove(os.path.join(conf.root, "lock"))
-
-    from azura.mvc.core.settings import configure
-    configure()
-
-    from azura.core.bot import Bot
-    bot = Bot(conf)
-
     try:
+        uvloop.install()
+        
+        if os.path.exists(os.path.join(conf.root, "lock")):
+            os.remove(os.path.join(conf.root, "lock"))
+
+        from azura.mvc.core.settings import configure
+        configure()
+
+        from azura.core.bot import Bot
+        bot = Bot(conf)
+
         with pidfile.PIDFile():
             setproctitle.setproctitle(conf.name)
             bot.run()
