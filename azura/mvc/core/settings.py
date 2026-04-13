@@ -28,7 +28,7 @@ BASE_DIR = conf.root_dir
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-_17$sl(98#9*b4--1l#@hd!!6hyoc41!&$5)e&55w2l(u9z%i9"
+SECRET_KEY = conf.mvc.secret_key
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = conf.mvc.debug_mode
@@ -49,10 +49,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "sortedm2m",
     "azura.mvc.discord",
-    "azura.mvc.issues",
-    "azura.mvc.internal",
-    "azura.mvc.music",
+    "azura.mvc.music"
 ]
 
 MIDDLEWARE = [
@@ -95,12 +94,8 @@ WSGI_APPLICATION = "azura.mvc.core.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": conf.mvc.db_name,
-        "USER": conf.mvc.db_user,
-        "PASSWORD": conf.mvc.db_pass,
-        "HOST": conf.mvc.db_host,
-        "PORT": conf.mvc.db_port
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": conf.mvc.database.path
     }
 }
 
@@ -129,7 +124,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = conf.timezone
+TIME_ZONE = str(conf.timezone)
 
 USE_I18N = True
 
@@ -146,6 +141,9 @@ STATIC_ROOT = conf.mvc.static_root
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+MEDIA_URL = '/uploads/'
+MEDIA_ROOT = conf.mvc.upload_root
 
 
 def configure():

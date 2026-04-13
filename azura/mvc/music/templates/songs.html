@@ -1,0 +1,15 @@
+{% for song in songs %}
+<tr>
+    <button class="songbutton" hx-post="/music/player-update" hx-swap="none" hx-trigger="click" hx-vals='{"action": "enqueue", "song": {{ song.id }}}'>
+        {% if song.id == current_song_id %}
+        <h3>{{ song.artists }} - {{ song.name }}</h3>
+        {% else %}
+        {{ song.artists }} - {{ song.name }}
+        {% endif %}
+    </button>
+</tr>
+{% endfor %}
+
+
+
+

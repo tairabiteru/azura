@@ -1,0 +1,4 @@
+#!/bin/bash
+cd {exec_directory}
+source {venv_directory}/bin/activate
+python -OO ./ daemon

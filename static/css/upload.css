@@ -1,0 +1,51 @@
+.chip-field{
+  width: 400px;
+  height: auto;
+  min-height: 34px;
+  border: 2px solid #737679;
+  padding: 8px;
+  margin: 8px;
+  cursor: text;
+  border-radius: 3px;
+  
+  box-shadow: 0 2px 6px rgba(25,25,25,0.2);
+}
+
+.chip-field .chips .chip {
+  display: inline-block;
+  width: auto;
+  
+  background-color: #0077b5;
+  color: #fff;
+  border-radius: 3px;
+  margin: 2px;
+  overflow: hidden;
+}
+.chip-field .chips .chip{
+  float: left;
+}
+
+.chip-field .chips .chip .chip-button {
+  padding: 8px;
+  cursor: pointer;
+  background-color: #004471;
+  display: inline-block;
+}
+.chip-field .chips .chip .chip-text {
+  padding: 8px;
+  cursor: no;
+  display: inline-block;
+  pointer-events: none
+}
+
+.chip-field > input{
+  padding: 15px;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 34px;
+  border: none;
+  margin: 5px 0 0;
+  display: inline-block;
+  background-color: transparent;
+}

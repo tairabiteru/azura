@@ -22,5 +22,5 @@ class Channel(DiscordBaseModel):
     def __str__(self):
         try:
             return f"{self.obj.name}"
-        except ValueError: 
+        except (ValueError, AttributeError): 
             return f"CID: {self.id}"

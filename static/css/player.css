@@ -1,0 +1,63 @@
+body {
+  color: white;
+  font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: large;
+  background-image: url("/static/img/nebula.jpg");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-attachment: fixed;
+  height: 100%;
+  width: 100%;
+}
+
+.columnwrapper {
+  columns: 2;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.player-container {
+  border: 5px solid white;
+  border-radius: 20px;
+  width: fit-content;
+  display: inline-block;
+  padding: 20px;
+}
+
+.songbutton {
+  background-color: gray;
+  border: none;
+  color: white;
+  text-align: center;
+  text-decoration: none;
+  font-size: 16px;
+  margin: 4px 2px;
+  transition-duration: 0.2s;
+  cursor: pointer;
+}
+
+.songbutton:hover {
+  background-color: #9900ff;
+}
+
+.searchbox {
+  border: 2px solid #33ff22;
+  border-radius: 8px;
+  height: 40px;
+  font-size: large;
+}
+
+.player-container {
+  width: 50vw;
+}
+
+#seek-slider {
+  width: 35vw;
+  margin-left: 10px;
+}
+
+.hoverable:hover {
+  color: #9900ff;
+  cursor: pointer;
+}

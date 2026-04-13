@@ -1,9 +1,10 @@
-from .playlists import *
-from .history import *
-
+from .library import Artist, Library, Song, Stream
+from .playlist import Playlist
 
 __all__ = [
-    Playlist,
-    PlaylistEntry,
-    PlaybackHistoryEntry
+    "Library",
+    "Artist",
+    "Song",
+    "Playlist",
+    "Stream",
 ]

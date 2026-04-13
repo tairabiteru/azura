@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Now Playing</title>
+    <link rel="stylesheet" href="/static/css/player.css"></link>
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  </head>
+  <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    <div class="columnwrapper">
+      <div>
+        <div class="player-container" hx-get="/music/player-get" hx-swap="outerHTML" hx-trigger="load, every 0.25s"></div>
+      </div>
+    
+      <div class="search-container">
+        <input class="searchbox" type="text" placeholder="Enter a song name..." name="term" hx-post="/music/get-songs" hx-swap="innerHTML" hx-target="#searchtable" hx-trigger="input changed delay:0.25s">
+        <table id="searchtable"></table>
+      </div>
+    </div>
+  </body>
+</html>

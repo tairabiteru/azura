@@ -1,7 +1,7 @@
 from django.db import models
 
 from ...core.models import BaseAsyncModel
-from ...discord.fields import BaseIDField
+from ..fields import BaseIDField
 
 from asgiref.sync import sync_to_async
 import inspect
@@ -21,11 +21,19 @@ def obj_inject_bot(func):
         resolve = kwargs.pop("resolve", False)
         self._bot = bot
         o = await func(self, *args, **kwargs)
-        o._bot = bot
-        if resolve is True:
-            await o.resolve_all()
-        return o
-    
+
+        if isinstance(o, tuple):
+            o, _ = o
+
+            o._bot = bot
+            if resolve is True:
+                await o.resolve_all()
+            return o, _
+        else:
+            o._bot = bot
+            if resolve is True:
+                await o.resolve_all()
+            return o
     if inspect.iscoroutinefunction(func):
         return awrapper
     return wrapper
@@ -120,6 +128,14 @@ class DiscordBaseManager(models.Manager):
     async def aget(self, *args, **kwargs):
         return await super().aget(*args, **kwargs)
     
+    @obj_inject_bot
+    def get_or_create(self, *args, **kwargs):
+        return super().get_or_create()
+    
+    @obj_inject_bot
+    async def aget_or_create(self, *args, **kwargs):
+        return await super().aget_or_create(*args, **kwargs)
+    
     @inject_bot
     def exclude(self, *args, **kwargs):
         return super().exclude(*args, **kwargs)
@@ -147,8 +163,14 @@ class DiscordBaseModel(BaseAsyncModel):
         if bot is not None:
             self.attach_bot(bot)
 
-        for name in self._get_field_value_map(self._meta).keys():
-            field = getattr(self.__class__, name).field
+        for name in self._get_field_expression_map(self._meta).keys():
+            if name == "pk":
+                continue
+            field = getattr(self.__class__, name)
+            if isinstance(field, property):
+                continue
+            else:
+                field = field.field
             if isinstance(field, BaseIDField):
                 self._resolved[name] = await field.aresolve(self.bot, getattr(self, name))
     
@@ -156,7 +178,9 @@ class DiscordBaseModel(BaseAsyncModel):
         if bot is not None:
             self.attach_bot(bot)
         
-        for name in self._get_field_value_map(self._meta).keys():
+        for name in self._get_field_expression_map(self._meta).keys():
+            if name == "pk":
+                continue
             field = getattr(self.__class__, name).field
             if isinstance(field, BaseIDField):
                 self._resolved[name] = field.resolve(self.bot, getattr(self, name))

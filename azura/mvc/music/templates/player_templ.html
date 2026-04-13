@@ -1,0 +1,31 @@
+<div class="player-container" hx-get="/music/player-get" hx-swap="outerHTML" hx-trigger="every 0.5s">
+    <h3>{{ session.channel_name }}</h3>
+    <p id="title">{{ session.current_track.title }}</p>
+    <p id="artist">{{ session.current_track.artists }}</p>
+    
+    <span id="current-time" class="time">{{ session.current_track.position }}</span>
+    <input type="range" id="seek-slider" name="position" hx-post="/music/player-update" hx-swap="none" hx-trigger="input changed" hx-vals='{"action": "seek"}' max="10000" value="{{ session.current_track.permyriad_done }}">
+    <span id="duration" class="time">{{ session.current_track.length }}</span>
+
+    <input type="range" orient="vertical" id="volume-slider" name="volume" max="200" value="{{ session.volume }}" hx-post="/music/player-update" hx-swap="none" hx-trigger="input changed" hx-vals='{"action": "vol"}'><br>
+    <button hx-post="/music/player-update" hx-swap="none" hx-trigger="click" hx-vals='{"action": "adv-1"}'><span class="material-symbols-outlined">skip_previous</span></button>
+    <button hx-post="/music/player-update" hx-swap="none" hx-trigger="click" hx-vals='{"action": "play"}'><span class="material-symbols-outlined">{% if session.paused %}play_arrow{% else %}pause{% endif %}</span></button>
+    <button hx-post="/music/player-update" hx-swap="none" hx-trigger="click" hx-vals='{"action": "adv1"}'><span class="material-symbols-outlined">skip_next</span></button>
+    <button hx-post="/music/player-update" hx-swap="none" hx-trigger="click" hx-vals='{"action": "rept"}'><span class="material-symbols-outlined">{{ session.repeat_mode }}</span></button>
+
+
+    <div class="queue">
+        {% for track in session.queue.current_tracks %}
+        {% if track.position == session.queue.position %}
+        
+        <p><h2>{{ track.position }}. {{ track.artists }} - {{ track.title }}</h2></p>
+        {% else %}
+        <p>{{ track.position }}. <span class="hoverable material-symbols-outlined" hx-post="/music/player-update" hx-swap="none" hx-trigger="click" hx-vals='{"action": "skipto", "position": "{{ track.position }}"}'>keyboard_double_arrow_up</span> {{ track.artists }} - {{ track.title }}</p>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+
+
+
+
