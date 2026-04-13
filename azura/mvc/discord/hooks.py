@@ -1,6 +1,7 @@
-from .models import User, Guild, Channel, Role, PermissionsObject
-
 import hikari
+import hikari.channels
+
+from .models import User, Guild, Channel, Role
 
 
 def handle_events(*event_classes):
@@ -53,16 +54,12 @@ class DiscordEventHandler:
             await role.adelete()
 
     @staticmethod
-    async def run_model_update(bot):
-        for _, user in bot.cache.get_users_view().items():
-            try:
-                await User.objects.aget(id=user.id)
-            except User.DoesNotExist:
-                user = User(id=user.id)
-                await user.asave()
-        
+    async def run_model_update(bot):    
         guilds = []
-        for _, guild in bot.cache.get_guilds_view().items():
+        async for guild in bot.rest.fetch_my_guilds():
+            async for member in bot.rest.fetch_members(guild):
+                _, _ = await User.objects.aget_or_create(id=member.id)
+                
             guilds.append(guild.id)
             try:
                 await Guild.objects.aget(id=guild.id)
@@ -74,7 +71,13 @@ class DiscordEventHandler:
             try:
                 await bot.rest.fetch_guild(guild.id)
             except (hikari.UnauthorizedError, hikari.NotFoundError):
-                bot.logger.warning(f"Deleted Guild ID: {guild.id} since it can no longer be resolved.")
+                async for channel in Channel.objects.filter(guild_id=guild.id):
+                    bot.logger.warning(f"Deleting channel ID: {channel.id} since its guild is missing.")
+                    await channel.adelete()
+                async for role in Role.objects.filter(guild_id=guild.id):
+                    bot.logger.warning(f"Deleting role ID: {role.id} since its guild is missing.")
+                    await role.adelete()
+                bot.logger.warning(f"Deleting Guild ID: {guild.id} since it can no longer be resolved.")
                 await guild.adelete()
 
         channels = []
@@ -85,24 +88,32 @@ class DiscordEventHandler:
             except Channel.DoesNotExist:
                 if channel.type == hikari.channels.ChannelType.GUILD_TEXT:
                     type = 'GUILD_TEXT'
-                if channel.type == hikari.channels.ChannelType.GUILD_VOICE:
+                elif channel.type == hikari.channels.ChannelType.GUILD_VOICE:
                     type = 'GUILD_VOICE'
-                guild = await Guild.objects.aget(id=channel.guild_id, bot=bot, resolve=False)
+                else:
+                    continue
+                guild, _ = await Guild.objects.aget_or_create(id=channel.guild_id, bot=bot, resolve=False)
                 channel = Channel(id=channel.id, type=type, guild=guild)
                 await channel.asave()
         
-        guild_channel_mapping ={}
+        guild_channel_mapping = {}
         async for channel in Channel.objects.all():
             guild = (await Channel.objects.select_related('guild').aget(id=channel.id)).guild
             try:
                 if channel.id not in guild_channel_mapping[str(guild.id)]:
-                    bot.logger.warning(f"Deleted channel ID: {channel.id} since it can no longer be resolved.")
+                    bot.logger.warning(f"Deleting channel ID: {channel.id} since it can no longer be resolved.")
                     await channel.adelete()
             except KeyError:
-                guild_channel_mapping[str(guild.id)] = list([c.id for c in (await bot.rest.fetch_guild_channels(guild.id))])
-                if channel.id not in guild_channel_mapping[str(guild.id)]:
-                    bot.logger.warning(f"Deleted channel ID: {channel.id} since it can no longer be resolved.")
-                    await channel.adelete()
+                try:
+                    await bot.rest.fetch_guild(guild.id)
+
+                    guild_channel_mapping[str(guild.id)] = list([c.id for c in (await bot.rest.fetch_guild_channels(guild.id))])
+                    if channel.id not in guild_channel_mapping[str(guild.id)]:
+                        bot.logger.warning(f"Deleting channel ID: {channel.id} since it can no longer be resolved.")
+                        await channel.adelete()
+                except hikari.errors.NotFoundError:
+                    bot.logger.warning(f"Deleting channel ID: {channel.id} since its guild is missing.")
+                    await channel.adelete()                
         
         roles = []
         for _, role in bot.cache.get_roles_view().items():
@@ -119,28 +130,19 @@ class DiscordEventHandler:
             guild = (await Role.objects.select_related('guild').aget(id=role.id)).guild
             try:
                 if role.id not in guild_role_mapping[str(guild.id)]:
-                    bot.logger.warning(f"Deleted role ID: {role.id} since it was not in the cache.")
+                    bot.logger.warning(f"Deleting role ID: {role.id} since it was not in the cache.")
                     await role.adelete()
             except KeyError:
-                guild_role_mapping[str(guild.id)] = list([r.id for r in (await bot.rest.fetch_roles(guild.id))])
-                if role.id not in guild_role_mapping[str(guild.id)]:
-                    bot.logger.warning(f"Deleted role ID: {role.id} since it was not in the cache.")
+                try:
+                    await bot.rest.fetch_guild(guild.id)
+                
+                    guild_role_mapping[str(guild.id)] = list([r.id for r in (await bot.rest.fetch_roles(guild.id))])
+                    if role.id not in guild_role_mapping[str(guild.id)]:
+                        bot.logger.warning(f"Deleting role ID: {role.id} since it was not in the cache.")
+                        await role.adelete()
+                except hikari.errors.NotFoundError:
+                    bot.logger.warning(f"Deleting role ID: {role.id} since its guild is missing.")
                     await role.adelete()
         
-        for node in bot.permissions.nodes:
-            try:
-                await PermissionsObject.objects.aget(node=node, setting="+")
-            except PermissionsObject.DoesNotExist:
-                po = PermissionsObject(node=node, setting="+")
-                await po.asave()
-    
-            try:
-                await PermissionsObject.objects.aget(node=node, setting="-")
-            except PermissionsObject.DoesNotExist:
-                po = PermissionsObject(node=node, setting="-")
-                await po.asave()
-        
-        async for node in PermissionsObject.objects.all():
-            if node.node not in bot.permissions.nodes:
-                bot.logger.warning(f"Node {node} no longer exists, and the permissions object for it will be removed.")
-                await node.adelete()
+        await bot.permissions_root.ensure_objects()
+        await bot.permissions_root.delete_unused()

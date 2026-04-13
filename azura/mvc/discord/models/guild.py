@@ -4,7 +4,7 @@ from .base import DiscordBaseModel
 from ..fields import GuildIDField
 from ...core.fields import TimezoneField
 from .user import User
-from ....ext.utils import utcnow
+from azura.lib.utils import utcnow
 
 
 class Guild(DiscordBaseModel):
@@ -30,35 +30,6 @@ class Guild(DiscordBaseModel):
         
     def localnow(self):
         return utcnow().astimezone(zoneinfo.ZoneInfo(self.timezone))
-
-    def save(self, *args, **kwargs):
-        o2o_fields = {
-        }
-        for field, cls in o2o_fields.items():
-            if getattr(self, field) is None:
-                o = cls()
-                o.save()
-                setattr(self, field, o)
-        return super().save(*args, **kwargs)
-    
-    async def asave(self, *args, **kwargs):
-    
-        o2o_fields = {
-    
-        }
-
-        for field, cls in o2o_fields.items():
-            try:
-                s = await Guild.objects.select_related(field).aget(id=self.id)
-                if getattr(s, field) is None:
-                    o = cls()
-                    await o.asave()
-                    setattr(self, field, o)
-            except Guild.DoesNotExist:
-                o = cls()
-                await o.asave()
-                setattr(self, field, o)
-        return await super().asave(*args, **kwargs)
 
     async def get_members(self, bot=None):
         if bot is not None:

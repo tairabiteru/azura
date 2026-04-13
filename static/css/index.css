@@ -2,7 +2,15 @@
 body {
   margin: auto;
   align-items: center;
-  justify-content: center; }
+  justify-content: center; 
+  background-image: url("/static/img/nebula.jpg");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-attachment: fixed;
+  height: 100%;
+  width: 100%;
+}
 
 header {
   background-color: rgba(0, 0, 0, 0.1);
@@ -21,7 +29,7 @@ body, html {
   font-family: 'Montserrat', sans-serif;
   height: 100%;
   position: relative;
-  background-image: url("/static/img/vaporwave.jpg");
+  background-color: #333;
   background-size: cover;
   background-repeat: no-repeat;
   background-attachment: fixed; }

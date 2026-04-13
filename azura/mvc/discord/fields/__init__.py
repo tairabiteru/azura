@@ -32,6 +32,8 @@ class GuildIDField(BaseIDField):
         return guild
     
     def resolve(self, bot, id):
+        if not isinstance(id, int):
+            id = id.id
         return bot.cache.get_guild(id)
 
 
@@ -46,6 +48,8 @@ class ChannelIDField(BaseIDField):
         return channel
     
     def resolve(self, bot, id):
+        if not isinstance(id, int):
+            id = id.id
         return bot.cache.get_guild_channel(id)
 
 
@@ -74,4 +78,6 @@ class RoleIDField(BaseIDField):
         return role
     
     def resolve(self, bot, id):
+        if not isinstance(id, int):
+            id = id.id
         return bot.cache.get_role(id)

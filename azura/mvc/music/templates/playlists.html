@@ -10,17 +10,23 @@
         <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"/>
         <link rel="stylesheet" href="/static/css/playlists.css"/>
 
-        <script src="https://unpkg.com/htmx.org@1.9.5" integrity="sha384-xcuj3WpfgjlKF+FXhSQFQ0ZNr39ln+hwjN3npfM9VBnUskLolQAcN80McRIVOPuO" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
         <script src="/static/js/table-dragger.min.js"></script>
-        <script src="https://kit.fontawesome.com/db8c487bb7.js" crossorigin="anonymous"></script>
     </head>
 
     <header class="animate6s">
         <h1 class="rainbow">Azura</h1>
     </header>
+    <datalist id="available_songs">
+        {% for song in songs %}
+        <option id="song_{{ song.id }}">{{ song.title }}</option>
+        {% endfor %}
+    </datalist>
+    </datalist>
     <input type="hidden" value='{"X-CSRFToken": "{{ csrf_token }}"}' id="csrf_token">
     <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' id="body">
-        <select id="playlist_selector" name="playlist_id" hx-post="get/" hx-target="#playlist" hx-swap="outerHTML">
+        <select id="playlist_selector" name="playlist_id" hx-post="/music/get-playlist" hx-target="#playlist" hx-swap="outerHTML">
             <option value="" disabled selected>Select a playlist</option>
             <option value="-1">Create a playlist</option>
             {% for playlist in playlists %}

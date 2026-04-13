@@ -29,117 +29,11 @@ function delete_entry(element) {
 }
 
 
-function append_entry(name, source, start, end) {
-    var tbody = document.getElementById("playlist_entries_tbody");
-    var row = tbody.insertRow();
-
-    var bars_td = row.insertCell();
-    bars_td.classList.add("handle");
-    var bars_itag = document.createElement('i');
-    bars_itag.classList.add("fas");
-    bars_itag.classList.add("fa-bars");
-    bars_td.appendChild(bars_itag);
-
-    var name_td = row.insertCell();
-    var name_input = document.createElement('input');
-    name_input.type = "search";
-    name_input.value = name;
-    name_input.placeholder = "Enter a title...";
-    name_td.appendChild(name_input);
-
-    var source_td = row.insertCell();
-    var source_input = document.createElement('input');
-    source_input.type = "search";
-    source_input.value = source;
-    source_input.placeholder = "Enter a source...";
-    source_td.appendChild(source_input);
-
-    var start_td = row.insertCell();
-    var start_input = document.createElement('input');
-    start_input.type = "search";
-    start_input.value = start;
-    start_input.placeholder = "00:00";
-    start_td.appendChild(start_input);
-
-    var end_td = row.insertCell();
-    var end_input = document.createElement('input');
-    end_input.type = "search";
-    end_input.value = end;
-    end_input.placeholder = "End of Track";
-    end_td.appendChild(end_input);
-
-    var del_td = row.insertCell();
-    var del_input = document.createElement('button');
-    del_input.type = 'button';
-    del_input.onclick = function () {delete_entry(del_input);};
-    var del_itag = document.createElement('i');
-    del_itag.classList.add("fas");
-    del_itag.classList.add("fa-trash-alt");
-    del_input.appendChild(del_itag);
-    del_td.appendChild(del_input);
-
-    update_dragger();
-}
-
-
 htmx.on("htmx:afterSettle", (event) => {
     if (event.srcElement.id == "playlist") {
         update_dragger();
     }
 });
-
-
-async function save_playlist() {
-    var playlist_id = document.getElementById("playlist_selector").value;
-    var playlist_name = document.getElementById("playlist_name").value;
-    var playlist_description = document.getElementById("playlist_description").value;
-    var items = [];
-
-    var tbody = document.getElementById("playlist_entries_tbody");
-    var titles = [];
-
-    for (var i=0; i<tbody.rows.length; i++) {
-        var row = tbody.rows[i];
-
-        var item = {
-            'name': row.cells[1].firstChild.value,
-            'source': row.cells[2].firstChild.value,
-            'start': row.cells[3].firstChild.value,
-            'end': row.cells[4].firstChild.value
-        };
-
-        items.push(item);
-    }
-
-    var data = {
-        'id': parseInt(playlist_id),
-        'name': playlist_name,
-        'description': playlist_description,
-        'items': items
-    };
-
-    $.ajax({
-        url: "/playlists/save/",
-        method: "POST",
-        headers: JSON.parse(document.getElementById("csrf_token").value),
-        data: JSON.stringify(data),
-        dataType: "json",
-        success: function (result) {
-                if (result['status'] == "error") {
-                    console.log(result);
-                    toastr.error(result['reason']);
-                    return;
-                }
-
-                if (document.getElementById("playlist_selector").value == -1) {
-                    alert("Playlist created. The page will now reload.");
-                    window.location.reload();
-                }
-
-                toastr.success("Your playlist has been saved.");
-            }
-    });
-}
 
 
 async function delete_playlist() {
@@ -152,14 +46,96 @@ async function delete_playlist() {
 
     data = {'playlist_id': playlist_id};
     $.ajax({
-        url: "/playlists/delete/",
+        url: "/music/delete-playlist",
         method: "POST",
         headers: JSON.parse(document.getElementById("csrf_token").value),
-        data: JSON.stringify(data),
+        data: {'data': JSON.stringify(data)},
         dataType: "json",
         success: function (result) {
                 alert("Playlist successfully deleted.");
                 window.location.reload();
+            }
+    });
+}
+
+
+function handle_song_entry(element) {
+    var list = document.getElementById("available_songs");
+    var value = element.value;
+
+    for (const opt of list.options) {
+        if (opt.innerHTML == value) {
+            element.id = opt.id;
+            element.style.backgroundColor = "#9900ff";
+            return;
+        } 
+    }
+
+    element.style.backgroundColor = "#ff5555";
+    element.id = "";
+
+}
+
+
+function append_entry() {
+    var tr = $("<tr style='color: white;'></tr>");
+    var handle = $("<td class='handle sindu_handle'><span class='material-symbols-outlined'>reorder</span></td>");
+    var song = $("<td><input type='search' placeholder='Enter a song name...' list='available_songs' oninput='handle_song_entry(this);'></td>");
+    var start = $("<td><input type='search' placeholder='00:00'></td>");
+    var end = $("<td><input type='search placeholder='End of Track'></td>");
+    var del = $("<td><button type='button' onclick='delete_entry(this);'><span class='material-symbols-outlined'>delete</span></button></td>");
+    tr.append(handle, song, start, end, del);
+    $("#playlist_entries_tbody").append(tr);
+    update_dragger();
+}
+
+
+function save_playlist() {
+    var playlist_id = $("#playlist_id").val();
+    var name = $("#playlist_name").val();
+    var description = $("#playlist_description").val();
+    var data = {'playlist_id': playlist_id, 'name': name, 'description': description, 'songs': []};
+    
+    if (!name) {
+        toastr.error("You must specify a name for the playlist.");
+        return;
+    }
+
+    var tbody = document.getElementById("playlist_entries_tbody");
+
+    for (const row of tbody.rows) {
+        var cells = row.getElementsByTagName("td");
+        
+        var id = cells[1].firstChild.id;
+        var start = cells[2].firstChild.value;
+        var end = cells[3].firstChild.value;
+        var song = {'id': id, 'start': start, 'end': end};
+
+        if (!id) {
+            toastr.error("One or more of the song names specified are invalid.");
+            return;
+        }
+
+        data['songs'].push(song);
+    }
+
+    $.ajax({
+        url: "/music/save-playlist",
+        method: "POST",
+        headers: JSON.parse(document.getElementById("csrf_token").value),
+        data: {'data': JSON.stringify(data)},
+        dataType: "json",
+        success: function (result) {
+                if (result['status'] == 'error') {
+                    console.log(result);
+                    toastr.error(result['reason']);
+                    return;
+                } else if (result['status'] == 'reload') {
+                    alert(result['reason']);
+                    window.location.reload();
+                } else {
+                    toastr.success("Your playlist has been saved.");
+                }
             }
     });
 }

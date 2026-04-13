@@ -1,0 +1,17 @@
+[Unit]
+After=network-online.target
+Description=Azura, an advanced music bot.
+
+[Service]
+Type=simple
+Restart=always
+ExecStart={exec_path}
+KillMode=mixed
+User={user}
+Group={group}
+StandardOutput=append:{stdout_log_path}
+StandardError=append:{stderr_log_path}
+Environment=UID={uid} XDG_RUNTIME_DIR=/run/user/{uid} DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus
+
+[Install]
+WantedBy=multi-user.target

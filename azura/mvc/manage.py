@@ -4,7 +4,7 @@
 So this probably looks familiar, huh? Since there's no other file to write docstrings
 in this directory, I'm just gonna write the general description here.
 
-Azura's Model-View Controller *IS* Django, albeit a heavily modified version of it. I
+azura's Model-View Controller *IS* Django, albeit a heavily modified version of it. I
 have a weird mixture of feelings about the work I've done in here. Django is very, VERY
 clearly not set up to work with something like the Discord API, at all. That is painfully
 obvious when you read further into the work done in here, and realize that a lot of it
@@ -13,7 +13,7 @@ thousands of times better, why did I choose to use Django?
 
 Well, truthfully, it's the ORM. I love Django's ORM, and I love the migration tool
 built into it. A framework like Sanic would work a lot better for the web end of this,
-and in fact, that WAS what Azura used to use. However, Sanic is only one half of what
+and in fact, that WAS what azura used to use. However, Sanic is only one half of what
 Django does. The other half being the ORM, which I'd have to engage a separate library
 for.
 

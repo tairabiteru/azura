@@ -15,8 +15,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.views.generic.base import RedirectView
-from django.urls import path, include
-from .views import index
+from django.urls import path, include, re_path
+from django.conf.urls.static import static
+from django.conf import settings
+from .views import index, auth, protected_file
 from ...core.conf import Config
 
 
@@ -31,8 +33,12 @@ admin.site.site_header = f"{conf.name} Administration"
 
 urlpatterns = [
     path("", index),
-    path("discord/", include("azura.mvc.discord.urls")),
-    path("playlists/", include("azura.mvc.music.urls")),
+    path("auth/", auth),
+    path("music/", include("azura.mvc.music.urls")),
     path("admin/", admin.site.urls),
+    
+    re_path('^uploads/cabinet/.+', protected_file, name='protected_file'),
     path('favicon.ico', favicon),
 ]
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
