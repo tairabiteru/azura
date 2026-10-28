@@ -14,12 +14,60 @@ import pyfiglet
 
 from ..daemons import run_daemons
 from ..lib.hooks import require_not_denied
+from ..lib.ma import MADaemon
 from ..lib.permissions import AccessIsDenied, Node
 from ..lib.utils import utcnow
 from ..mvc.discord.hooks import DiscordEventHandler
 from .conf import Config
 from .http import HTTPDaemon
 from .log import logging
+
+# def make_koe(conf: Config, bot: hikari.GatewayBot) -> koe.Koe:
+#     return koe.Koe(
+#         bot,
+#         host=conf.lavalink.host,
+#         port=conf.lavalink.port,
+#         password=conf.lavalink.password,
+#     )
+
+
+# def make_lightbulb(conf: Config, bot: hikari.GatewayBot) -> lightbulb.Client:
+#     lightbulb_client = lightbulb.client_from_app(
+#         bot,
+#         features=[lightbulb.features.COMMAND_INJECT_CONTEXT],
+#         hooks=[require_not_denied],
+#     )
+
+#     lightbulb_client.di.registry_for(lightbulb.di.Contexts.COMMAND).register_value(
+#         hikari.GatewayBot, bot
+#     )
+#     lightbulb_client.di.registry_for(lightbulb.di.Contexts.COMMAND).register_value(
+#         Config, conf
+#     )
+
+#     lightbulb_client.error_handler(on_exc_pipeline_error)
+#     return lightbulb_client
+
+
+# async def load_command_handler(client: lightbulb.Client):
+#     await client.load_extensions("azura.ext")
+
+#     await client.start()
+
+#     from ..lib.injection import load_injection_for_commands
+
+#     load_injection_for_commands(client)
+
+
+# async def on_ready(bot: hikari.GatewayBot, event: hikari.ShardReadyEvent): ...
+
+
+# def make_bot(conf: Config) -> hikari.GatewayBot:
+#     conf = Config.load()
+#     bot = hikari.GatewayBot(conf.token, intents=hikari.Intents.ALL, logs=None)
+
+#     koe = make_koe(conf, bot)
+#     lightbulb_client = make_lightbulb(conf, bot)
 
 
 class Bot(hikari.GatewayBot):
@@ -65,6 +113,7 @@ class Bot(hikari.GatewayBot):
 
         # Handle HTTP Daemon
         self._http_daemon: HTTPDaemon | None = None
+        self._ma_daemon: MADaemon | None = None
 
         # Define events
         self.subscribe(hikari.StartingEvent, self._load_command_handler)
@@ -104,6 +153,12 @@ class Bot(hikari.GatewayBot):
             raise RuntimeError("Access to HTTP daemon made but it is not active.")
         return self._http_daemon
 
+    @property
+    def ma_daemon(self) -> MADaemon:
+        if self._ma_daemon is None:
+            raise RuntimeError("Access to MA daemon made, but it is not active.")
+        return self._ma_daemon
+
     async def _on_reinit(self) -> None:
         """
         Handle reinitialization condition.
@@ -128,6 +183,7 @@ class Bot(hikari.GatewayBot):
         self._permissions_root = Node.build_from_client(self.lightbulb)
         await DiscordEventHandler.run_model_update(self)
         self._http_daemon = await HTTPDaemon.run(self)
+        self._ma_daemon = await MADaemon.run(self)
 
         self.is_ready.set()
 

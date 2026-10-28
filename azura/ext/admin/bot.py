@@ -21,7 +21,7 @@ class Uptime(
     name="uptime",
     description="Display uptime information."
 ):
-    
+
     @lightbulb.invoke
     async def invoke(self, ctx: lightbulb.Context) -> None:
         embed = hikari.Embed(title=f"{conf.name}'s Current Uptime")
@@ -44,10 +44,10 @@ class Kill(
         {conf.name} wll cease to work entirely, and this action can \
         only be reversed with console access. Are you sure you wish to\
         do this?"
-    
+
     @validate(warning)
     @lightbulb.invoke
-    async def invoke(self, ctx: lightbulb.Context) -> None:    
+    async def invoke(self, ctx: lightbulb.Context) -> None:
         await ctx.client.app.close(ctx=ctx, kill=True)
 
 
@@ -107,7 +107,8 @@ class Info(
 
         embed = hikari.Embed(title=conf.name, url=f"https://{conf.mvc.allowed_hosts[0]}")
         embed.description = f"**Version {ctx.client.app.version}**\nRunning on {platform.python_implementation()} {python_version}"
-        embed.set_thumbnail(ctx.client.app.get_me().avatar_url)
+        guild = await ctx.client.app.rest.fetch_guild(ctx.guild_id)
+        embed.set_thumbnail(guild.get_my_member().make_avatar_url())
 
         root = get_byte_unit(get_dir_size(conf.root))
         temp = get_byte_unit(get_dir_size(conf.temp))
@@ -128,7 +129,7 @@ class IP(
 ):
     @lightbulb.invoke
     async def invoke(self, ctx: lightbulb.Context) -> None:
-        
+
         async with DelayedResponse(ctx, "Obtaining TCP/IP info...", timeout=10) as response:
             ip = await aio_get("https://api.ipify.org")
             embed = hikari.Embed(title="TCP/IP Information")

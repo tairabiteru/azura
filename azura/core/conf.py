@@ -54,7 +54,12 @@ DEFAULTS = {
         "port": 2333,
         "ssl": False,
         "password": "some_pass",
-        "stream": "http://some_stream_url",
+    },
+    "ma": {
+        "enabled": False,
+        "api_url": "http://localhost:8095",
+        "player_name": "Azura",
+        "token": "",
     },
 }
 
@@ -138,6 +143,14 @@ class LavalinkConfig(BaseConfig):
 
 
 @dataclasses.dataclass
+class MAConfig(BaseConfig):
+    enabled: bool
+    api_url: str
+    player_name: str
+    token: str
+
+
+@dataclasses.dataclass
 class GeneralConfig(BaseConfig):
     name: str
     timezone: zoneinfo.ZoneInfo
@@ -151,12 +164,9 @@ class GeneralConfig(BaseConfig):
     logging: LogConfig
     mvc: MVCConfig
     lavalink: LavalinkConfig
+    ma: MAConfig
 
-    _sub_fields: t.Tuple[str, ...] = (
-        "logging",
-        "mvc",
-        "lavalink",
-    )
+    _sub_fields: t.Tuple[str, ...] = ("logging", "mvc", "lavalink", "ma")
 
     @property
     def version(self) -> str:
